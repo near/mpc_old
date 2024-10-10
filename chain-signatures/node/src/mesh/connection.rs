@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use cait_sith::protocol::Participant;
+use near_primitives::types::BlockHeight;
 use tokio::sync::RwLock;
 use url::Url;
 
@@ -165,13 +166,36 @@ impl Pool {
         self.potential_connections.read().await.clone()
     }
 
-    pub async fn is_participant_stable(&self, participant: &Participant) -> bool {
+    async fn max_block_height_among_participants(&self) -> BlockHeight {
+        self.status
+            .read()
+            .await
+            .values()
+            .filter_map(|state| {
+                if let StateView::Running {
+                    latest_block_height,
+                    ..
+                } = state
+                {
+                    Some(*latest_block_height)
+                } else {
+                    None
+                }
+            })
+            .max()
+            .unwrap_or(0)
+    }
+
+    pub async fn is_participant_indexer_progressing(&self, participant: &Participant) -> bool {
         self.status
             .read()
             .await
             .get(participant)
             .map_or(false, |state| match state {
-                StateView::Running { is_stable, .. } => *is_stable,
+                StateView::Running {
+                    is_indexer_progressing,
+                    ..
+                } => *is_indexer_progressing,
                 _ => false,
             })
     }
@@ -212,5 +236,29 @@ impl Pool {
             self.fetch_participant_timeout,
         )
         .await
+    }
+    
+    pub async fn is_participant_indexer_caught_up(&self, participant: &Participant) -> bool {
+        let max_block_height = self.max_block_height_among_participants().await;
+
+        if max_block_height == 0 {
+            return false;
+        }
+
+        let my_block_height = self
+            .status
+            .read()
+            .await
+            .get(participant)
+            .and_then(|state| match state {
+                StateView::Running {
+                    latest_block_height,
+                    ..
+                } => Some(*latest_block_height),
+                _ => None,
+            })
+            .unwrap_or(0);
+
+        (max_block_height - my_block_height) < 50
     }
 }

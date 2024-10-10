@@ -112,13 +112,13 @@ pub enum StateView {
         presignature_mine_count: usize,
         presignature_potential_count: usize,
         latest_block_height: BlockHeight,
-        is_stable: bool,
+        is_indexer_progressing: bool,
     },
     Resharing {
         old_participants: Vec<Participant>,
         new_participants: Vec<Participant>,
         latest_block_height: BlockHeight,
-        is_stable: bool,
+        is_indexer_progressing: bool,
     },
     Joining {
         participants: Vec<Participant>,
@@ -131,7 +131,7 @@ pub enum StateView {
 async fn state(Extension(state): Extension<Arc<AxumState>>) -> Result<Json<StateView>> {
     tracing::debug!("fetching state");
     let latest_block_height = state.indexer.latest_block_height().await;
-    let is_stable = state.indexer.is_on_track().await;
+    let is_indexer_progressing = state.indexer.is_on_track().await;
     let protocol_state = state.protocol_state.read().await;
 
     match &*protocol_state {
@@ -155,7 +155,7 @@ async fn state(Extension(state): Extension<Arc<AxumState>>) -> Result<Json<State
                 presignature_mine_count,
                 presignature_potential_count,
                 latest_block_height,
-                is_stable,
+                is_indexer_progressing,
             }))
         }
         NodeState::Resharing(state) => {
@@ -165,7 +165,7 @@ async fn state(Extension(state): Extension<Arc<AxumState>>) -> Result<Json<State
                 old_participants,
                 new_participants,
                 latest_block_height,
-                is_stable,
+                is_indexer_progressing,
             }))
         }
         NodeState::Joining(state) => {

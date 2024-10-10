@@ -89,7 +89,15 @@ impl Mesh {
     pub async fn stable_participants(&self) -> Participants {
         let mut stable = Participants::default();
         for (participant, info) in self.active_participants().iter() {
-            if self.connections.is_participant_stable(participant).await {
+            if self
+                .connections
+                .is_participant_indexer_progressing(participant)
+                .await
+                && self
+                    .connections
+                    .is_participant_indexer_caught_up(participant)
+                    .await
+            {
                 stable.insert(participant, info.clone());
             }
         }
