@@ -99,6 +99,7 @@ impl<'a> Node<'a> {
             start_block_height: 0,
             running_threshold: 120,
             behind_threshold: 120,
+            block_height_lag_threshold: 50,
         };
 
         let args = mpc_node::cli::Cli::Start {
