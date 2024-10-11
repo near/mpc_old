@@ -4,6 +4,7 @@ use crate::protocol::ProtocolState;
 use near_account_id::AccountId;
 use near_crypto::InMemorySigner;
 
+use near_primitives::types::BlockHeight;
 use serde_json::json;
 
 pub async fn fetch_mpc_contract_state(
@@ -98,4 +99,20 @@ pub async fn vote_reshared(
         .json()?;
 
     Ok(result)
+}
+
+pub async fn fetch_latest_block_height(
+    rpc_client: &near_fetch::Client,
+) -> anyhow::Result<BlockHeight> {
+    let latest_block_height: BlockHeight = rpc_client
+        .view_block()
+        .await
+        .map_err(|e| {
+            tracing::warn!(%e, "failed to fetch latest block");
+            e
+        })?
+        .header
+        .height;
+    tracing::debug!(latest_block_height, "latest block height");
+    Ok(latest_block_height)
 }
