@@ -162,7 +162,7 @@ impl Indexer {
             self.latest_block_height().await
                 < network_latest_height - self.block_height_lag_threshold
         } else {
-            false
+            true
         }
     }
 
