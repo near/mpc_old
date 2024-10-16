@@ -59,7 +59,7 @@ pub struct Options {
     #[clap(
         long,
         env("MPC_INDEXER_BLOCK_HEIGHT_LAG_THRESHOLD"),
-        default_value = "50"
+        default_value = "200"
     )]
     pub block_height_lag_threshold: u64,
 }
