@@ -1,5 +1,6 @@
 use super::cryptography::CryptographicError;
 use super::presignature::{GenerationError, PresignatureId};
+use super::signature::SignRequestIdentifier;
 use super::state::{GeneratingState, NodeState, ResharingState, RunningState};
 use super::triple::TripleId;
 use crate::gcp::error::SecretStorageError;
@@ -103,7 +104,7 @@ pub struct MpcMessageQueue {
     resharing_bins: HashMap<u64, VecDeque<ResharingMessage>>,
     triple_bins: HashMap<u64, HashMap<TripleId, VecDeque<TripleMessage>>>,
     presignature_bins: HashMap<u64, HashMap<PresignatureId, VecDeque<PresignatureMessage>>>,
-    signature_bins: HashMap<u64, HashMap<CryptoHash, VecDeque<SignatureMessage>>>,
+    signature_bins: HashMap<u64, HashMap<SignRequestIdentifier, VecDeque<SignatureMessage>>>,
 }
 
 impl MpcMessageQueue {
@@ -133,7 +134,11 @@ impl MpcMessageQueue {
                 .signature_bins
                 .entry(message.epoch)
                 .or_default()
-                .entry(message.receipt_id)
+                .entry(SignRequestIdentifier::new(
+                    message.receipt_id,
+                    message.epsilon,
+                    message.request.payload,
+                ))
                 .or_default()
                 .push_back(message),
         }
@@ -366,7 +371,7 @@ impl MessageHandler for RunningState {
 
         let mut signature_manager = self.signature_manager.write().await;
         let signature_messages = queue.signature_bins.entry(self.epoch).or_default();
-        signature_messages.retain(|receipt_id, queue| {
+        signature_messages.retain(|sign_request_identifier, queue| {
             // Skip message if it already timed out
             if queue.is_empty()
                 || queue.iter().any(|msg| {
@@ -379,9 +384,9 @@ impl MessageHandler for RunningState {
                 return false;
             }
 
-            !signature_manager.refresh_gc(receipt_id)
+            !signature_manager.refresh_gc(sign_request_identifier)
         });
-        for (receipt_id, queue) in signature_messages {
+        for (sign_request_identifier, queue) in signature_messages {
             // SAFETY: this unwrap() is safe since we have already checked that the queue is not empty.
             let SignatureMessage {
                 proposer,
@@ -414,7 +419,7 @@ impl MessageHandler for RunningState {
             // TODO: Validate that the message matches our sign_queue
             let protocol = match signature_manager.get_or_generate(
                 participants,
-                *receipt_id,
+                sign_request_identifier.receipt_id,
                 *proposer,
                 *presignature_id,
                 request,
@@ -437,7 +442,11 @@ impl MessageHandler for RunningState {
                     // and have the other nodes timeout in the following cases:
                     // - If a presignature is in GC, then it was used already or failed to be produced.
                     // - If a presignature is missing, that means our system cannot process this signature.
-                    tracing::warn!(%receipt_id, ?err, "signature cannot be generated");
+                    tracing::warn!(
+                        ?sign_request_identifier,
+                        ?err,
+                        "signature cannot be generated"
+                    );
                     queue.clear();
                     continue;
                 }
@@ -445,7 +454,7 @@ impl MessageHandler for RunningState {
                     // ignore the whole of the messages since the generation had bad parameters. Also have the other node who
                     // initiated the protocol resend the message or have it timeout on their side.
                     tracing::warn!(
-                        ?receipt_id,
+                        ?sign_request_identifier,
                         presignature_id,
                         ?error,
                         "unable to initialize incoming signature protocol"
@@ -455,7 +464,7 @@ impl MessageHandler for RunningState {
                 }
                 Err(err) => {
                     tracing::warn!(
-                        ?receipt_id,
+                        ?sign_request_identifier,
                         ?err,
                         "Unexpected error encounted while generating signature"
                     );

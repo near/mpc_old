@@ -14,9 +14,13 @@ use mpc_contract::ProtocolContractState;
 use mpc_contract::RunningContractState;
 use mpc_node::web::StateView;
 use near_fetch::ops::AsyncTransactionStatus;
+use near_lake_primitives::CryptoHash;
 use near_primitives::errors::ActionErrorKind;
+use near_primitives::views::ExecutionOutcomeWithIdView;
+use near_primitives::views::ExecutionStatusView;
 use near_primitives::views::FinalExecutionStatus;
 use near_workspaces::Account;
+use std::collections::HashMap;
 use url::Url;
 
 pub async fn running_mpc<'a>(
@@ -256,6 +260,7 @@ pub enum WaitForError {
 enum Outcome {
     Signature(FullSignature<Secp256k1>),
     Failed(String),
+    Signatures(Vec<FullSignature<Secp256k1>>),
 }
 
 pub async fn signature_responded(
@@ -290,6 +295,9 @@ pub async fn signature_responded(
     match is_tx_ready.retry(&strategy).await? {
         Outcome::Signature(signature) => Ok(signature),
         Outcome::Failed(err) => Err(WaitForError::Signature(SignatureError::Failed(err))),
+        _ => Err(WaitForError::Signature(SignatureError::Failed(
+            "Should not return more than one signature".to_string(),
+        ))),
     }
 }
 
@@ -365,4 +373,92 @@ pub async fn rogue_message_responded(status: AsyncTransactionStatus) -> anyhow::
         .with_context(|| "failed to wait for rogue message response")?;
 
     Ok(signature.clone())
+}
+
+pub async fn batch_signature_responded(
+    status: AsyncTransactionStatus,
+) -> Result<Vec<FullSignature<Secp256k1>>, WaitForError> {
+    let is_tx_ready = || async {
+        let Poll::Ready(outcome) = status
+            .status()
+            .await
+            .map_err(|err| WaitForError::JsonRpc(format!("{err:?}")))?
+        else {
+            return Err(WaitForError::Signature(SignatureError::NotYetAvailable));
+        };
+
+        if !outcome.is_success() {
+            return Err(WaitForError::Signature(SignatureError::Failed(format!(
+                "status: {:?}",
+                outcome.status()
+            ))));
+        }
+
+        let receipt_outcomes = outcome.details.receipt_outcomes();
+        let mut result_receipts: HashMap<CryptoHash, Vec<CryptoHash>> = HashMap::new();
+        for receipt_outcome in receipt_outcomes {
+            result_receipts
+                .entry(receipt_outcome.id)
+                .or_insert(receipt_outcome.outcome.receipt_ids.clone());
+        }
+        let mut receipt_outcomes_keyed: HashMap<CryptoHash, &ExecutionOutcomeWithIdView> =
+            HashMap::new();
+        for receipt_outcome in receipt_outcomes {
+            receipt_outcomes_keyed
+                .entry(receipt_outcome.id)
+                .or_insert(receipt_outcome);
+        }
+
+        let starting_receipts = &receipt_outcomes.get(0).unwrap().outcome.receipt_ids;
+
+        let mut signatures: Vec<FullSignature<Secp256k1>> = vec![];
+        for receipt_id in starting_receipts {
+            if !result_receipts.contains_key(receipt_id) {
+                break;
+            }
+            let sign_receipt_id = receipt_id;
+            for receipt_id in result_receipts.get(sign_receipt_id).unwrap() {
+                let receipt_outcome = receipt_outcomes_keyed
+                    .get(receipt_id)
+                    .unwrap()
+                    .outcome
+                    .clone();
+                if receipt_outcome
+                    .logs
+                    .contains(&"Signature is ready.".to_string())
+                {
+                    match receipt_outcome.status {
+                        ExecutionStatusView::SuccessValue(value) => {
+                            let result: SignatureResponse = serde_json::from_slice(&value)
+                                .map_err(|err| WaitForError::SerdeJson(format!("{err:?}")))?;
+                            let signature = cait_sith::FullSignature::<Secp256k1> {
+                                big_r: result.big_r.affine_point,
+                                s: result.s.scalar,
+                            };
+                            signatures.push(signature);
+                        }
+                        _ => {
+                            return Err(WaitForError::Signature(SignatureError::Failed(
+                                "one signature not done.".to_string(),
+                            )))
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(Outcome::Signatures(signatures))
+    };
+
+    let strategy = ConstantBuilder::default()
+        .with_delay(Duration::from_secs(20))
+        .with_max_times(5);
+
+    match is_tx_ready.retry(&strategy).await? {
+        Outcome::Signature(_) => Err(WaitForError::Signature(SignatureError::Failed(
+            "Should not return just 1 signature".to_string(),
+        ))),
+        Outcome::Failed(err) => Err(WaitForError::Signature(SignatureError::Failed(err))),
+        Outcome::Signatures(signatures) => Ok(signatures),
+    }
 }

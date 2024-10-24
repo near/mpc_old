@@ -234,7 +234,7 @@ impl PresignatureManager {
             )));
         }
 
-        tracing::info!(id, "starting protocol to generate a new presignature");
+        tracing::debug!(id, "starting protocol to generate a new presignature");
         let generator = Self::generate_internal(
             participants,
             self.me,

@@ -226,7 +226,7 @@ impl TripleManager {
             )));
         }
 
-        tracing::info!(id, "starting protocol to generate a new triple");
+        tracing::debug!(id, "starting protocol to generate a new triple");
         let participants: Vec<_> = participants.keys().cloned().collect();
         let protocol: TripleProtocol = Box::new(cait_sith::triples::generate_triple::<Secp256k1>(
             &participants,

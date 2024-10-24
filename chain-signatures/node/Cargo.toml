@@ -15,6 +15,7 @@ aws-sdk-s3 = "1.29"
 aws-types = "1.2"
 axum = { version = "0.6.19" }
 axum-extra = "0.7"
+borsh = "1.5.0"
 cait-sith = { git = "https://github.com/LIT-Protocol/cait-sith.git", features = [
     "k256",
 ], rev = "8ad2316" }

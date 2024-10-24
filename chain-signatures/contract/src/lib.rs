@@ -64,17 +64,23 @@ impl Default for VersionedMpcContract {
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct MpcContract {
     protocol_state: ProtocolContractState,
-    pending_requests: LookupMap<SignatureRequest, YieldIndex>,
+    pending_requests: LookupMap<SignatureRequest, Option<YieldIndex>>,
     request_counter: u32,
     proposed_updates: ProposedUpdates,
     config: Config,
 }
 
 impl MpcContract {
+    fn mark_request_received(&mut self, request: &SignatureRequest) {
+        if self.pending_requests.insert(request, &None).is_none() {
+            self.request_counter += 1;
+        }
+    }
+
     fn add_request(&mut self, request: &SignatureRequest, data_id: CryptoHash) {
         if self
             .pending_requests
-            .insert(request, &YieldIndex { data_id })
+            .insert(request, &Some(YieldIndex { data_id }))
             .is_none()
         {
             self.request_counter += 1;
@@ -166,6 +172,7 @@ impl VersionedMpcContract {
                 "sign: predecessor={predecessor}, payload={payload:?}, path={path:?}, key_version={key_version}",
             );
             env::log_str(&serde_json::to_string(&near_sdk::env::random_seed_array()).unwrap());
+            self.mark_request_received(&request);
             let contract_signature_request = ContractSignatureRequest {
                 request,
                 requester: predecessor,
@@ -275,7 +282,7 @@ impl VersionedMpcContract {
 
             match self {
                 Self::V0(mpc_contract) => {
-                    if let Some(YieldIndex { data_id }) =
+                    if let Some(Some(YieldIndex { data_id })) =
                         mpc_contract.pending_requests.get(&request)
                     {
                         env::promise_yield_resume(
@@ -800,6 +807,12 @@ impl VersionedMpcContract {
     fn request_already_exists(&self, request: &SignatureRequest) -> bool {
         match self {
             Self::V0(mpc_contract) => mpc_contract.pending_requests.contains_key(request),
+        }
+    }
+
+    fn mark_request_received(&mut self, request: &SignatureRequest) {
+        match self {
+            Self::V0(ref mut mpc_contract) => mpc_contract.mark_request_received(request),
         }
     }
 
