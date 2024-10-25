@@ -46,7 +46,8 @@ async fn test_propose_contract_max_size_upload() {
     let execution = accounts[0]
         .call(contract.id(), "propose_update")
         .args_borsh((ProposeUpdateArgs {
-            code: Some(vec![0; 3900 * 1024]),
+            // current protocol can only accept 1.5mb as transaction arg
+            code: Some(vec![0; 1535 * 1024]),
             config: None,
         },))
         .max_gas()
