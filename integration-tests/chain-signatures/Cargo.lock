@@ -3264,7 +3264,6 @@ dependencies = [
  "anyhow",
  "async-process",
  "backon",
- "base64 0.22.1",
  "bollard",
  "cait-sith",
  "clap",

@@ -409,7 +409,7 @@ pub async fn batch_signature_responded(
                 .or_insert(receipt_outcome);
         }
 
-        let starting_receipts = &receipt_outcomes.get(0).unwrap().outcome.receipt_ids;
+        let starting_receipts = &receipt_outcomes.first().unwrap().outcome.receipt_ids;
 
         let mut signatures: Vec<FullSignature<Secp256k1>> = vec![];
         for receipt_id in starting_receipts {
