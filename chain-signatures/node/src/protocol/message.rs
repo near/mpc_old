@@ -135,7 +135,7 @@ impl MpcMessageQueue {
                 .entry(message.epoch)
                 .or_default()
                 .entry(SignRequestIdentifier::new(
-                    message.receipt_id,
+                    message.receipt_id.0,
                     message.epsilon,
                     message.request.payload,
                 ))
