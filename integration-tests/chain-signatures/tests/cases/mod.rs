@@ -394,12 +394,25 @@ async fn test_multichain_update_contract() -> anyhow::Result<()> {
 }
 
 #[test(tokio::test)]
-async fn test_batch_signature() -> anyhow::Result<()> {
+async fn test_batch_random_signature() -> anyhow::Result<()> {
     with_multichain_nodes(MultichainConfig::default(), |ctx| {
         Box::pin(async move {
             let state_0 = wait_for::running_mpc(&ctx, Some(0)).await?;
             assert_eq!(state_0.participants.len(), 3);
-            actions::batch_signature_production(&ctx, &state_0).await?;
+            actions::batch_random_signature_production(&ctx, &state_0).await?;
+            Ok(())
+        })
+    })
+    .await
+}
+
+#[test(tokio::test)]
+async fn test_batch_duplicate_signature() -> anyhow::Result<()> {
+    with_multichain_nodes(MultichainConfig::default(), |ctx| {
+        Box::pin(async move {
+            let state_0 = wait_for::running_mpc(&ctx, Some(0)).await?;
+            assert_eq!(state_0.participants.len(), 3);
+            actions::batch_duplicate_signature_production(&ctx, &state_0).await?;
             Ok(())
         })
     })

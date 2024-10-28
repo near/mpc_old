@@ -181,7 +181,7 @@ impl VersionedMpcContract {
             };
             Ok(Self::ext(env::current_account_id()).sign_helper(contract_signature_request))
         } else {
-            Err(SignError::PayloadCollision.into())
+            Err(SignError::RequestCollision.into())
         }
     }
 

@@ -6,7 +6,7 @@ pub enum SignError {
     #[error("Signature request has timed out.")]
     Timeout,
     #[error("Signature request has already been submitted. Please try again later.")]
-    PayloadCollision,
+    RequestCollision,
     #[error(
         "This key version is not supported. Call latest_key_version() to get the latest supported version."
     )]

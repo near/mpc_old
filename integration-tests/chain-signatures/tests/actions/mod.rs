@@ -14,6 +14,7 @@ use k256::elliptic_curve::sec1::FromEncodedPoint;
 use k256::elliptic_curve::ProjectivePoint;
 use k256::{AffinePoint, EncodedPoint, Scalar, Secp256k1};
 use mpc_contract::errors;
+use mpc_contract::errors::SignError;
 use mpc_contract::primitives::SignRequest;
 use mpc_contract::primitives::SignatureRequest;
 use mpc_contract::RunningContractState;
@@ -26,7 +27,7 @@ use near_workspaces::types::NearToken;
 use near_workspaces::Account;
 use rand::Rng;
 use secp256k1::XOnlyPublicKey;
-use wait_for::WaitForError;
+use wait_for::{SignatureError, WaitForError};
 
 use std::time::Duration;
 
@@ -72,7 +73,7 @@ pub async fn request_sign(
     Ok((payload, payload_hashed, account, status))
 }
 
-pub async fn request_batch_sign(
+pub async fn request_batch_random_sign(
     ctx: &MultichainTestContext<'_>,
 ) -> anyhow::Result<(Vec<([u8; 32], [u8; 32])>, Account, AsyncTransactionStatus)> {
     let worker = &ctx.nodes.ctx().worker;
@@ -106,6 +107,41 @@ pub async fn request_batch_sign(
     let status = tx.transact_async().await?;
     tokio::time::sleep(Duration::from_secs(3)).await;
     Ok((payloads, account, status))
+}
+
+pub async fn request_batch_duplicate_sign(
+    ctx: &MultichainTestContext<'_>,
+) -> anyhow::Result<([u8; 32], u32, Account, AsyncTransactionStatus)> {
+    let worker = &ctx.nodes.ctx().worker;
+    let account = worker.dev_create_account().await?;
+    let signer = InMemorySigner {
+        account_id: account.id().clone(),
+        public_key: account.secret_key().public_key().to_string().parse()?,
+        secret_key: account.secret_key().to_string().parse()?,
+    };
+
+    let mut tx = ctx.rpc_client.batch(&signer, ctx.contract().id());
+    let payload: [u8; 32] = rand::thread_rng().gen();
+    let payload_hashed = web3::signing::keccak256(&payload);
+    let sign_call_cnt = 2;
+    for _ in 0..sign_call_cnt {
+        let request = SignRequest {
+            payload: payload_hashed,
+            path: "test".to_string(),
+            key_version: 0,
+        };
+        let function = Function::new("sign")
+            .args_json(serde_json::json!({
+                "request": request,
+            }))
+            .gas(Gas::from_tgas(50))
+            .deposit(NearToken::from_yoctonear(1));
+        tx = tx.call(function);
+    }
+
+    let status = tx.transact_async().await?;
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    Ok((payload_hashed, sign_call_cnt, account, status))
 }
 
 pub async fn assert_signature(
@@ -340,11 +376,11 @@ pub async fn clear_toxics() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn batch_signature_production(
+pub async fn batch_random_signature_production(
     ctx: &MultichainTestContext<'_>,
     state: &RunningContractState,
 ) -> anyhow::Result<()> {
-    let (payloads, account, status) = request_batch_sign(ctx).await?;
+    let (payloads, account, status) = request_batch_random_sign(ctx).await?;
     let signatures = wait_for::batch_signature_responded(status).await?;
 
     let mut mpc_pk_bytes = vec![0x04];
@@ -356,6 +392,21 @@ pub async fn batch_signature_production(
         assert_signature(account.id(), &mpc_pk_bytes, *payload_hash, signature).await;
     }
 
+    Ok(())
+}
+
+pub async fn batch_duplicate_signature_production(
+    ctx: &MultichainTestContext<'_>,
+    _state: &RunningContractState,
+) -> anyhow::Result<()> {
+    let (_, _, _, status) = request_batch_duplicate_sign(ctx).await?;
+    let result = wait_for::batch_signature_responded(status).await;
+    match result {
+        Err(WaitForError::Signature(SignatureError::Failed(err_msg))) => {
+            assert!(err_msg.contains(&SignError::RequestCollision.to_string()));
+        }
+        _ => panic!("Should have failed with PayloadCollision"),
+    }
     Ok(())
 }
 
