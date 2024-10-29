@@ -9,12 +9,12 @@ use sha3::Sha3_256;
 // that we generate different random scalars as delta tweaks.
 // Receipt ID should be unique inside of a block, so it serves us as the request identifier.
 pub fn derive_delta(
-    receipt_id: CryptoHash,
+    request_id: [u8; 32],
     entropy: [u8; 32],
     presignature_big_r: AffinePoint,
 ) -> Scalar {
     let hk = Hkdf::<Sha3_256>::new(None, &entropy);
-    let info = format!("{DELTA_DERIVATION_PREFIX}:{}", receipt_id);
+    let info = format!("{DELTA_DERIVATION_PREFIX}:{}", CryptoHash(request_id));
     let mut okm = [0u8; 32];
     hk.expand(info.as_bytes(), &mut okm).unwrap();
     hk.expand(

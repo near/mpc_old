@@ -239,7 +239,7 @@ async fn handle_block(
                     key_version: arguments.request.key_version,
                 };
                 pending_requests.push(SignRequest {
-                    receipt_id,
+                    request_id: receipt_id.0,
                     request,
                     epsilon,
                     entropy,
