@@ -149,7 +149,7 @@ pub struct SignatureGenerator {
     pub presignature_id: PresignatureId,
     pub request: ContractSignRequest,
     pub epsilon: Scalar,
-    pub receipt_id: [u8; 32],
+    pub request_id: [u8; 32],
     pub entropy: [u8; 32],
     pub sign_request_timestamp: Instant,
     pub generator_timestamp: Instant,
@@ -166,7 +166,7 @@ impl SignatureGenerator {
         presignature_id: PresignatureId,
         request: ContractSignRequest,
         epsilon: Scalar,
-        receipt_id: [u8; 32],
+        request_id: [u8; 32],
         entropy: [u8; 32],
         sign_request_timestamp: Instant,
         cfg: &ProtocolConfig,
@@ -178,7 +178,7 @@ impl SignatureGenerator {
             presignature_id,
             request,
             epsilon,
-            receipt_id,
+            request_id,
             entropy,
             sign_request_timestamp,
             generator_timestamp: Instant::now(),
@@ -211,22 +211,22 @@ pub struct GenerationRequest {
     pub proposer: Participant,
     pub request: ContractSignRequest,
     pub epsilon: Scalar,
-    pub receipt_id: [u8; 32],
+    pub request_id: [u8; 32],
     pub entropy: [u8; 32],
     pub sign_request_timestamp: Instant,
 }
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct SignRequestIdentifier {
-    pub receipt_id: [u8; 32],
+    pub request_id: [u8; 32],
     pub epsilon: Vec<u8>,
     pub payload: Vec<u8>,
 }
 
 impl SignRequestIdentifier {
-    pub fn new(receipt_id: [u8; 32], epsilon: Scalar, payload: Scalar) -> Self {
+    pub fn new(request_id: [u8; 32], epsilon: Scalar, payload: Scalar) -> Self {
         Self {
-            receipt_id,
+            request_id,
             epsilon: borsh::to_vec(&SerializableScalar { scalar: epsilon }).unwrap(),
             payload: borsh::to_vec(&SerializableScalar { scalar: payload }).unwrap(),
         }
@@ -317,12 +317,12 @@ impl SignatureManager {
             proposer,
             request,
             epsilon,
-            receipt_id,
+            request_id,
             entropy,
             sign_request_timestamp,
         } = req;
         let PresignOutput { big_r, k, sigma } = presignature.output;
-        let delta = derive_delta(CryptoHash(receipt_id), entropy, big_r);
+        let delta = derive_delta(CryptoHash(request_id), entropy, big_r);
         // TODO: Check whether it is okay to use invert_vartime instead
         let output: PresignOutput<Secp256k1> = PresignOutput {
             big_r: (big_r * delta).to_affine(),
@@ -347,7 +347,7 @@ impl SignatureManager {
             presignature_id,
             request,
             epsilon,
-            receipt_id,
+            request_id,
             entropy,
             sign_request_timestamp,
             cfg,
@@ -411,7 +411,7 @@ impl SignatureManager {
                 proposer: self.me,
                 request,
                 epsilon,
-                receipt_id: receipt_id.0,
+                request_id: receipt_id.0,
                 entropy,
                 sign_request_timestamp,
             },
@@ -434,7 +434,7 @@ impl SignatureManager {
     pub fn get_or_generate(
         &mut self,
         participants: &Participants,
-        receipt_id: [u8; 32],
+        request_id: [u8; 32],
         proposer: Participant,
         presignature_id: PresignatureId,
         request: &ContractSignRequest,
@@ -444,7 +444,7 @@ impl SignatureManager {
         cfg: &ProtocolConfig,
     ) -> Result<&mut SignatureProtocol, GenerationError> {
         let sign_request_identifier =
-            SignRequestIdentifier::new(receipt_id, epsilon, request.payload);
+            SignRequestIdentifier::new(request_id, epsilon, request.payload);
         if self.completed.contains_key(&sign_request_identifier) {
             tracing::warn!(sign_request_identifier = ?sign_request_identifier.clone(), presignature_id, "presignature has already been used to generate a signature");
             return Err(GenerationError::AlreadyGenerated);
@@ -479,7 +479,7 @@ impl SignatureManager {
                         request: request.clone(),
                         epsilon,
                         entropy,
-                        receipt_id,
+                        request_id,
                         sign_request_timestamp: Instant::now(),
                     },
                     cfg,
@@ -526,7 +526,7 @@ impl SignatureManager {
                                         proposer: generator.proposer,
                                         request: generator.request.clone(),
                                         epsilon: generator.epsilon,
-                                        receipt_id: generator.receipt_id,
+                                        request_id: generator.request_id,
                                         entropy: generator.entropy,
                                         sign_request_timestamp: generator.sign_request_timestamp
                                     },
@@ -553,7 +553,7 @@ impl SignatureManager {
                             messages.push((
                                 *p,
                                 SignatureMessage {
-                                    receipt_id: CryptoHash(sign_request_identifier.receipt_id),
+                                    request_id: sign_request_identifier.request_id,
                                     proposer: generator.proposer,
                                     presignature_id: generator.presignature_id,
                                     request: generator.request.clone(),
@@ -570,7 +570,7 @@ impl SignatureManager {
                     Action::SendPrivate(p, data) => messages.push((
                         p,
                         SignatureMessage {
-                            receipt_id: CryptoHash(sign_request_identifier.receipt_id),
+                            request_id: sign_request_identifier.request_id,
                             proposer: generator.proposer,
                             presignature_id: generator.presignature_id,
                             request: generator.request.clone(),
@@ -598,7 +598,7 @@ impl SignatureManager {
                         };
                         if generator.proposer == self.me {
                             self.signatures
-                                .push(ToPublish::new(CryptoHash(sign_request_identifier.receipt_id), request, generator.sign_request_timestamp, output));
+                                .push(ToPublish::new(CryptoHash(sign_request_identifier.request_id), request, generator.sign_request_timestamp, output));
                         }
                         // Do not retain the protocol
                         return false;

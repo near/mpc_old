@@ -14,7 +14,6 @@ use cait_sith::protocol::{InitializationError, MessageData, Participant, Protoco
 use k256::Scalar;
 use mpc_keys::hpke::{self, Ciphered};
 use near_crypto::Signature;
-use near_primitives::hash::CryptoHash;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -64,7 +63,7 @@ pub struct PresignatureMessage {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct SignatureMessage {
-    pub receipt_id: CryptoHash,
+    pub request_id: [u8; 32],
     pub proposer: Participant,
     pub presignature_id: PresignatureId,
     pub request: ContractSignRequest,
@@ -135,7 +134,7 @@ impl MpcMessageQueue {
                 .entry(message.epoch)
                 .or_default()
                 .entry(SignRequestIdentifier::new(
-                    message.receipt_id.0,
+                    message.request_id,
                     message.epsilon,
                     message.request.payload,
                 ))
@@ -419,7 +418,7 @@ impl MessageHandler for RunningState {
             // TODO: Validate that the message matches our sign_queue
             let protocol = match signature_manager.get_or_generate(
                 participants,
-                sign_request_identifier.receipt_id,
+                sign_request_identifier.request_id,
                 *proposer,
                 *presignature_id,
                 request,
