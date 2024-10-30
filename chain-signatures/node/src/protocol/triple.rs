@@ -162,7 +162,7 @@ impl TripleManager {
 
     pub async fn contains(&self, id: &TripleId) -> bool {
         self.triple_storage
-            .write()
+            .read()
             .await
             .contains(id)
             .await
@@ -172,7 +172,7 @@ impl TripleManager {
 
     pub async fn contains_mine(&self, id: &TripleId) -> bool {
         self.triple_storage
-            .write()
+            .read()
             .await
             .contains_mine(id)
             .await
@@ -189,7 +189,8 @@ impl TripleManager {
         id0: TripleId,
         id1: TripleId,
     ) -> Result<(Triple, Triple), GenerationError> {
-        let triple_0 = match self.triple_storage.write().await.take(&id0).await {
+        let mut triples = self.triple_storage.write().await;
+        let triple_0 = match triples.take(&id0).await {
             Ok(Some(triple)) => triple,
             Ok(None) => {
                 if self.generators.contains_key(&id0) {
@@ -209,10 +210,10 @@ impl TripleManager {
             }
         };
 
-        let triple_1 = match self.triple_storage.write().await.take(&id1).await {
+        let triple_1 = match triples.take(&id1).await {
             Ok(Some(triple)) => triple,
             Ok(None) => {
-                if let Err(e) = self.triple_storage.write().await.insert(triple_0).await {
+                if let Err(e) = triples.insert(triple_0).await {
                     tracing::warn!(id0, ?e, "failed to insert triple back");
                 }
                 if self.generators.contains_key(&id1) {
@@ -228,7 +229,7 @@ impl TripleManager {
             }
             Err(e) => {
                 tracing::warn!(id1, ?e, "failed to take triple");
-                if let Err(e) = self.triple_storage.write().await.insert(triple_0).await {
+                if let Err(e) = triples.insert(triple_0).await {
                     tracing::warn!(id0, ?e, "failed to insert triple back");
                 }
                 return Err(GenerationError::TripleIsMissing(id1));
@@ -247,11 +248,12 @@ impl TripleManager {
     /// It is very important to NOT reuse the same triple twice for two different
     /// protocols.
     pub async fn take_two_mine(&mut self) -> Option<(Triple, Triple)> {
-        if self.len_mine().await < 2 {
+        let mut triples = self.triple_storage.write().await;
+        if triples.len_mine().await.unwrap_or(0) < 2 {
             tracing::warn!("not enough mine triples");
             return None;
         }
-        let triple_0 = match self.triple_storage.write().await.take_mine().await {
+        let triple_0 = match triples.take_mine().await {
             Ok(Some(triple)) => triple,
             Ok(None) => {
                 tracing::warn!("no mine triple left");
@@ -263,13 +265,10 @@ impl TripleManager {
             }
         };
 
-        let triple_1 = match self.triple_storage.write().await.take_mine().await {
+        let triple_1 = match triples.take_mine().await {
             Ok(Some(triple)) => triple,
             Ok(None) => {
-                if let Err(e) = self
-                    .triple_storage
-                    .write()
-                    .await
+                if let Err(e) = triples
                     .insert_mine(triple_0)
                     .await
                 {
@@ -280,10 +279,7 @@ impl TripleManager {
             }
             Err(e) => {
                 tracing::warn!(?e, "failed to take mine triple");
-                if let Err(e) = self
-                    .triple_storage
-                    .write()
-                    .await
+                if let Err(e) = triples
                     .insert_mine(triple_0)
                     .await
                 {
@@ -304,7 +300,7 @@ impl TripleManager {
     /// Returns the number of unspent triples available in the manager.
     pub async fn len_generated(&self) -> usize {
         self.triple_storage
-            .write()
+            .read()
             .await
             .len_generated()
             .await
@@ -314,7 +310,7 @@ impl TripleManager {
     /// Returns the number of unspent triples assigned to this node.
     pub async fn len_mine(&self) -> usize {
         self.triple_storage
-            .write()
+            .read()
             .await
             .len_mine()
             .await

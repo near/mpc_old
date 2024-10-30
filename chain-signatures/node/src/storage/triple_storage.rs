@@ -41,13 +41,13 @@ impl TripleRedisStorage {
         Ok(())
     }
 
-    pub async fn contains(&mut self, id: &TripleId) -> TripleResult<bool> {
+    pub async fn contains(&self, id: &TripleId) -> TripleResult<bool> {
         let mut conn = self.redis_pool.get().await?;
         let result: bool = conn.hexists(self.triple_key(), id).await?;
         Ok(result)
     }
 
-    pub async fn contains_mine(&mut self, id: &TripleId) -> TripleResult<bool> {
+    pub async fn contains_mine(&self, id: &TripleId) -> TripleResult<bool> {
         let mut conn = self.redis_pool.get().await?;
         let result: bool = conn.sismember(self.mine_key(), id).await?;
         Ok(result)
@@ -79,13 +79,13 @@ impl TripleRedisStorage {
         }
     }
 
-    pub async fn len_generated(&mut self) -> TripleResult<usize> {
+    pub async fn len_generated(&self) -> TripleResult<usize> {
         let mut conn = self.redis_pool.get().await?;
         let result: usize = conn.hlen(self.triple_key()).await?;
         Ok(result)
     }
 
-    pub async fn len_mine(&mut self) -> TripleResult<usize> {
+    pub async fn len_mine(&self) -> TripleResult<usize> {
         let mut conn = self.redis_pool.get().await?;
         let result: usize = conn.scard(self.mine_key()).await?;
         Ok(result)

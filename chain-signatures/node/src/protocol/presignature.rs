@@ -218,7 +218,7 @@ impl PresignatureManager {
     /// Returns true if the presignature with the given id is already generated
     pub async fn contains(&self, id: &PresignatureId) -> bool {
         self.presignature_storage
-            .write()
+            .read()
             .await
             .contains(id)
             .await
@@ -231,7 +231,7 @@ impl PresignatureManager {
     /// Returns true if the mine presignature with the given id is already generated
     pub async fn contains_mine(&self, id: &PresignatureId) -> bool {
         self.presignature_storage
-            .write()
+            .read()
             .await
             .contains_mine(id)
             .await
@@ -291,7 +291,7 @@ impl PresignatureManager {
     /// Returns the number of unspent presignatures available in the manager.
     pub async fn len_generated(&self) -> usize {
         self.presignature_storage
-            .write()
+            .read()
             .await
             .len_generated()
             .await
@@ -304,7 +304,7 @@ impl PresignatureManager {
     /// Returns the number of unspent presignatures assigned to this node.
     pub async fn len_mine(&self) -> usize {
         self.presignature_storage
-            .write()
+            .read()
             .await
             .len_mine()
             .await

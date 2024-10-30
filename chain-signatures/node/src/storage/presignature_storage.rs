@@ -48,13 +48,13 @@ impl PresignatureRedisStorage {
         Ok(())
     }
 
-    pub async fn contains(&mut self, id: &PresignatureId) -> PresigResult<bool> {
+    pub async fn contains(&self, id: &PresignatureId) -> PresigResult<bool> {
         let mut connection = self.redis_pool.get().await?;
         let result: bool = connection.hexists(self.presig_key(), id).await?;
         Ok(result)
     }
 
-    pub async fn contains_mine(&mut self, id: &PresignatureId) -> PresigResult<bool> {
+    pub async fn contains_mine(&self, id: &PresignatureId) -> PresigResult<bool> {
         let mut connection = self.redis_pool.get().await?;
         let result: bool = connection.sismember(self.mine_key(), id).await?;
         Ok(result)
@@ -87,13 +87,13 @@ impl PresignatureRedisStorage {
         }
     }
 
-    pub async fn len_generated(&mut self) -> PresigResult<usize> {
+    pub async fn len_generated(&self) -> PresigResult<usize> {
         let mut connection = self.redis_pool.get().await?;
         let result: usize = connection.hlen(self.presig_key()).await?;
         Ok(result)
     }
 
-    pub async fn len_mine(&mut self) -> PresigResult<usize> {
+    pub async fn len_mine(&self) -> PresigResult<usize> {
         let mut connection = self.redis_pool.get().await?;
         let result: usize = connection.scard(self.mine_key()).await?;
         Ok(result)
