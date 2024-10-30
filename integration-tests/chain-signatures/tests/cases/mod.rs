@@ -220,7 +220,7 @@ async fn test_triple_persistence() -> anyhow::Result<()> {
     let redis_cfg = deadpool_redis::Config::from_url(redis_url);
     let redis_pool = redis_cfg.create_pool(Some(Runtime::Tokio1)).unwrap();
     let triple_storage = storage::triple_storage::init(
-        redis_pool.clone(),
+        &redis_pool,
         &AccountId::from_str("test.near").unwrap(),
     );
 

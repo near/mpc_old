@@ -158,7 +158,7 @@ impl Nodes<'_> {
 
     pub async fn triple_storage(
         &self,
-        redis_pool: Pool,
+        redis_pool: &Pool,
         account_id: &AccountId,
     ) -> TripleRedisStorage {
         storage::triple_storage::init(redis_pool, account_id)
