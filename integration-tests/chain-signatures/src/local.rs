@@ -55,7 +55,6 @@ impl Node {
             start_block_height: 0,
             running_threshold: 120,
             behind_threshold: 120,
-            block_height_lag_threshold: 2000,
         };
         let near_rpc = ctx.lake_indexer.rpc_host_address.clone();
         let mpc_contract_id = ctx.mpc_contract.id().clone();
@@ -151,7 +150,6 @@ impl Node {
             start_block_height: 0,
             running_threshold: 120,
             behind_threshold: 120,
-            block_height_lag_threshold: 2000,
         };
         let cli = mpc_node::cli::Cli::Start {
             near_rpc: config.near_rpc.clone(),

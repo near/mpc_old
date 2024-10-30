@@ -1,7 +1,6 @@
 use crate::gcp::error::DatastoreStorageError;
 use crate::gcp::GcpService;
 use crate::protocol::{SignQueue, SignRequest};
-use crate::rpc_client;
 use crate::types::LatestBlockHeight;
 use crypto_shared::{derive_epsilon, ScalarExt};
 use k256::Scalar;
@@ -48,20 +47,12 @@ pub struct Options {
     pub start_block_height: u64,
 
     /// The amount of time before we should that our indexer is behind.
-    #[clap(long, env("MPC_INDEXER_BEHIND_THRESHOLD"), default_value = "180")]
+    #[clap(long, env("MPC_INDEXER_BEHIND_THRESHOLD"), default_value = "200")]
     pub behind_threshold: u64,
 
     /// The threshold in seconds to check if the indexer needs to be restarted due to it stalling.
     #[clap(long, env("MPC_INDEXER_RUNNING_THRESHOLD"), default_value = "300")]
     pub running_threshold: u64,
-
-    /// The threshold in block height lag to check if the indexer has caught up.
-    #[clap(
-        long,
-        env("MPC_INDEXER_BLOCK_HEIGHT_LAG_THRESHOLD"),
-        default_value = "200"
-    )]
-    pub block_height_lag_threshold: u64,
 }
 
 impl Options {
@@ -77,8 +68,6 @@ impl Options {
             self.behind_threshold.to_string(),
             "--running-threshold".to_string(),
             self.running_threshold.to_string(),
-            "--block-height-lag-threshold".to_string(),
-            self.block_height_lag_threshold.to_string(),
         ];
 
         if let Some(s3_url) = self.s3_url {
@@ -114,18 +103,13 @@ pub struct ContractSignRequest {
 pub struct Indexer {
     latest_block_height: Arc<RwLock<LatestBlockHeight>>,
     last_updated_timestamp: Arc<RwLock<Instant>>,
+    latest_block_timestamp_nanoseconds: Arc<RwLock<Option<u64>>>,
     running_threshold: Duration,
     behind_threshold: Duration,
-    block_height_lag_threshold: u64,
-    rpc_client: near_fetch::Client,
 }
 
 impl Indexer {
-    fn new(
-        latest_block_height: LatestBlockHeight,
-        options: &Options,
-        rpc_client: near_fetch::Client,
-    ) -> Self {
+    fn new(latest_block_height: LatestBlockHeight, options: &Options) -> Self {
         tracing::info!(
             "creating new indexer, latest block height: {}",
             latest_block_height.block_height
@@ -133,21 +117,15 @@ impl Indexer {
         Self {
             latest_block_height: Arc::new(RwLock::new(latest_block_height)),
             last_updated_timestamp: Arc::new(RwLock::new(Instant::now())),
+            latest_block_timestamp_nanoseconds: Arc::new(RwLock::new(None)),
             running_threshold: Duration::from_secs(options.running_threshold),
             behind_threshold: Duration::from_secs(options.behind_threshold),
-            block_height_lag_threshold: options.block_height_lag_threshold,
-            rpc_client,
         }
     }
 
     /// Get the latest block height from the chain.
     pub async fn latest_block_height(&self) -> BlockHeight {
         self.latest_block_height.read().await.block_height
-    }
-
-    /// Check whether the indexer block height has been updated recently.
-    pub async fn is_on_track(&self) -> bool {
-        self.last_updated_timestamp.read().await.elapsed() <= self.behind_threshold
     }
 
     /// Check whether the indexer is on track with the latest block height from the chain.
@@ -157,26 +135,31 @@ impl Indexer {
 
     /// Check whether the indexer is behind with the latest block height from the chain.
     pub async fn is_behind(&self) -> bool {
-        let network_latest_height = rpc_client::fetch_latest_block_height(&self.rpc_client).await;
-        if let Ok(network_latest_height) = network_latest_height {
-            self.latest_block_height().await
-                < network_latest_height - self.block_height_lag_threshold
+        if let Some(latest_block_timestamp_nanoseconds) =
+            *self.latest_block_timestamp_nanoseconds.read().await
+        {
+            crate::util::is_elapsed_longer_than_timeout(
+                latest_block_timestamp_nanoseconds / 1000000000,
+                self.behind_threshold.as_millis() as u64,
+            )
         } else {
             true
         }
     }
 
     pub async fn is_stable(&self) -> bool {
-        !self.is_behind().await && self.is_on_track().await
+        !self.is_behind().await && self.is_running().await
     }
 
-    async fn update_block_height(
+    async fn update_block_height_and_timestamp(
         &self,
         block_height: BlockHeight,
+        block_timestamp_nanoseconds: u64,
         gcp: &GcpService,
     ) -> Result<(), DatastoreStorageError> {
-        tracing::debug!(block_height, "update_block_height");
+        tracing::debug!(block_height, "update_block_height_and_timestamp");
         *self.last_updated_timestamp.write().await = Instant::now();
+        *self.latest_block_timestamp_nanoseconds.write().await = Some(block_timestamp_nanoseconds);
         self.latest_block_height
             .write()
             .await
@@ -280,7 +263,11 @@ async fn handle_block(
     }
 
     ctx.indexer
-        .update_block_height(block.block_height(), &ctx.gcp_service)
+        .update_block_height_and_timestamp(
+            block.block_height(),
+            block.header().timestamp_nanosec(),
+            &ctx.gcp_service,
+        )
         .await?;
 
     crate::metrics::LATEST_BLOCK_HEIGHT
@@ -316,7 +303,6 @@ pub fn run(
     node_account_id: &AccountId,
     queue: &Arc<RwLock<SignQueue>>,
     gcp_service: &crate::gcp::GcpService,
-    rpc_client: near_fetch::Client,
     rt: &tokio::runtime::Runtime,
 ) -> anyhow::Result<(JoinHandle<anyhow::Result<()>>, Indexer)> {
     tracing::info!(
@@ -341,7 +327,7 @@ pub fn run(
         }
     });
 
-    let indexer = Indexer::new(latest_block_height, options, rpc_client);
+    let indexer = Indexer::new(latest_block_height, options);
     let context = Context {
         mpc_contract_id: mpc_contract_id.clone(),
         node_account_id: node_account_id.clone(),
