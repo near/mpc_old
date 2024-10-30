@@ -1,33 +1,30 @@
-use std::sync::Arc;
-
 use anyhow::Ok;
 use deadpool_redis::Pool;
 use near_sdk::AccountId;
 use redis::{AsyncCommands, FromRedisValue, RedisWrite, ToRedisArgs};
-use tokio::sync::RwLock;
 
 use crate::protocol::presignature::{Presignature, PresignatureId};
 
 type PresigResult<T> = std::result::Result<T, anyhow::Error>;
-pub type LockPresignatureRedisStorage = Arc<RwLock<PresignatureRedisStorage>>;
 
 // Can be used to "clear" redis storage in case of a breaking change
 const PRESIGNATURE_STORAGE_VERSION: &str = "v1";
 
-pub fn init(redis_pool: Pool, node_account_id: &AccountId) -> PresignatureRedisStorage {
+pub fn init(pool: &Pool, node_account_id: &AccountId) -> PresignatureRedisStorage {
     PresignatureRedisStorage {
-        redis_pool,
+        redis_pool: pool.clone(),
         node_account_id: node_account_id.clone(),
     }
 }
 
+#[derive(Clone)]
 pub struct PresignatureRedisStorage {
     redis_pool: Pool,
     node_account_id: AccountId,
 }
 
 impl PresignatureRedisStorage {
-    pub async fn insert(&mut self, presignature: Presignature) -> PresigResult<()> {
+    pub async fn insert(&self, presignature: Presignature) -> PresigResult<()> {
         let mut connection = self.redis_pool.get().await?;
         connection
             .hset::<&str, PresignatureId, Presignature, ()>(
@@ -39,7 +36,7 @@ impl PresignatureRedisStorage {
         Ok(())
     }
 
-    pub async fn insert_mine(&mut self, presignature: Presignature) -> PresigResult<()> {
+    pub async fn insert_mine(&self, presignature: Presignature) -> PresigResult<()> {
         let mut connection = self.redis_pool.get().await?;
         connection
             .sadd::<&str, PresignatureId, ()>(&self.mine_key(), presignature.id)
@@ -60,7 +57,7 @@ impl PresignatureRedisStorage {
         Ok(result)
     }
 
-    pub async fn take(&mut self, id: &PresignatureId) -> PresigResult<Option<Presignature>> {
+    pub async fn take(&self, id: &PresignatureId) -> PresigResult<Option<Presignature>> {
         let mut connection = self.redis_pool.get().await?;
         if self.contains_mine(id).await? {
             tracing::error!("Can not take mine presignature as foreign: {:?}", id);
@@ -78,7 +75,7 @@ impl PresignatureRedisStorage {
         }
     }
 
-    pub async fn take_mine(&mut self) -> PresigResult<Option<Presignature>> {
+    pub async fn take_mine(&self) -> PresigResult<Option<Presignature>> {
         let mut connection = self.redis_pool.get().await?;
         let id: Option<PresignatureId> = connection.spop(self.mine_key()).await?;
         match id {
@@ -99,7 +96,7 @@ impl PresignatureRedisStorage {
         Ok(result)
     }
 
-    pub async fn clear(&mut self) -> PresigResult<()> {
+    pub async fn clear(&self) -> PresigResult<()> {
         let mut connection = self.redis_pool.get().await?;
         connection.del::<&str, ()>(&self.presig_key()).await?;
         connection.del::<&str, ()>(&self.mine_key()).await?;

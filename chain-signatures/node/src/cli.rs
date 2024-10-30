@@ -1,8 +1,6 @@
 use crate::config::{Config, LocalConfig, NetworkConfig, OverrideConfig};
 use crate::gcp::GcpService;
 use crate::protocol::{MpcSignProtocol, SignQueue};
-use crate::storage::presignature_storage::LockPresignatureRedisStorage;
-use crate::storage::triple_storage::LockTripleRedisStorage;
 use crate::{http_client, indexer, mesh, storage, web};
 use clap::Parser;
 use deadpool_redis::Runtime;
@@ -213,14 +211,9 @@ pub fn run(cmd: Cli) -> anyhow::Result<()> {
 
             let redis_cfg = deadpool_redis::Config::from_url(redis_url);
             let redis_pool = redis_cfg.create_pool(Some(Runtime::Tokio1)).unwrap();
-
-            let triple_storage: LockTripleRedisStorage = Arc::new(RwLock::new(
-                storage::triple_storage::init(redis_pool.clone(), &account_id),
-            ));
-
-            let presignature_storage: LockPresignatureRedisStorage = Arc::new(RwLock::new(
-                storage::presignature_storage::init(redis_pool.clone(), &account_id),
-            ));
+            let triple_storage = storage::triple_storage::init(&redis_pool, &account_id);
+            let presignature_storage =
+                storage::presignature_storage::init(&redis_pool, &account_id);
 
             let sign_sk = sign_sk.unwrap_or_else(|| account_sk.clone());
             let my_address = my_address

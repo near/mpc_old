@@ -1,39 +1,37 @@
 use crate::protocol::triple::{Triple, TripleId};
-use std::sync::Arc;
 
 use deadpool_redis::Pool;
 use redis::{AsyncCommands, FromRedisValue, RedisWrite, ToRedisArgs};
-use tokio::sync::RwLock;
 
 use near_account_id::AccountId;
 
-pub type LockTripleRedisStorage = Arc<RwLock<TripleRedisStorage>>;
 type TripleResult<T> = std::result::Result<T, anyhow::Error>;
 
 // Can be used to "clear" redis storage in case of a breaking change
 const TRIPLE_STORAGE_VERSION: &str = "v1";
 
-pub fn init(redis_pool: Pool, account_id: &AccountId) -> TripleRedisStorage {
+pub fn init(pool: &Pool, account_id: &AccountId) -> TripleRedisStorage {
     TripleRedisStorage {
-        redis_pool,
+        redis_pool: pool.clone(),
         node_account_id: account_id.clone(),
     }
 }
 
+#[derive(Clone)]
 pub struct TripleRedisStorage {
     redis_pool: Pool,
     node_account_id: AccountId,
 }
 
 impl TripleRedisStorage {
-    pub async fn insert(&mut self, triple: Triple) -> TripleResult<()> {
+    pub async fn insert(&self, triple: Triple) -> TripleResult<()> {
         let mut conn = self.redis_pool.get().await?;
         conn.hset::<&str, TripleId, Triple, ()>(&self.triple_key(), triple.id, triple)
             .await?;
         Ok(())
     }
 
-    pub async fn insert_mine(&mut self, triple: Triple) -> TripleResult<()> {
+    pub async fn insert_mine(&self, triple: Triple) -> TripleResult<()> {
         let mut conn = self.redis_pool.get().await?;
         conn.sadd::<&str, TripleId, ()>(&self.mine_key(), triple.id)
             .await?;
@@ -53,7 +51,7 @@ impl TripleRedisStorage {
         Ok(result)
     }
 
-    pub async fn take(&mut self, id: &TripleId) -> TripleResult<Option<Triple>> {
+    pub async fn take(&self, id: &TripleId) -> TripleResult<Option<Triple>> {
         let mut conn = self.redis_pool.get().await?;
         if self.contains_mine(id).await? {
             tracing::error!("Can not take mine triple as foreign: {:?}", id);
@@ -70,7 +68,7 @@ impl TripleRedisStorage {
         }
     }
 
-    pub async fn take_mine(&mut self) -> TripleResult<Option<Triple>> {
+    pub async fn take_mine(&self) -> TripleResult<Option<Triple>> {
         let mut conn = self.redis_pool.get().await?;
         let id: Option<TripleId> = conn.spop(self.mine_key()).await?;
         match id {
@@ -91,7 +89,7 @@ impl TripleRedisStorage {
         Ok(result)
     }
 
-    pub async fn clear(&mut self) -> TripleResult<()> {
+    pub async fn clear(&self) -> TripleResult<()> {
         let mut conn = self.redis_pool.get().await?;
         conn.del::<&str, ()>(&self.triple_key()).await?;
         conn.del::<&str, ()>(&self.mine_key()).await?;
