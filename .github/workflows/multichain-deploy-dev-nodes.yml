@@ -9,7 +9,7 @@ on:
       - chain-signatures/**
 
 env:
-  IMAGE: "us-east1-docker.pkg.dev/pagoda-discovery-platform-dev/multichain-public/multichain-dev"
+  IMAGE: "europe-west1-docker.pkg.dev/near-cs-dev/multichain-public/multichain-dev"
   TAG: ${{ github.sha }}
 
 jobs:
@@ -21,11 +21,12 @@ jobs:
         name: "Checkout mpc-recovery"
 
       - name: Login to GCP Artifact Registry
-        run: echo "$GOOGLE_CREDENTIALS" | docker login -u _json_key --password-stdin https://us-east1-docker.pkg.dev
+        run: echo "$GOOGLE_CREDENTIALS" | docker login -u _json_key --password-stdin https://europe-west1-docker.pkg.dev
         env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS_DEV }}
+          GOOGLE_CREDENTIALS: ${{ secrets.SIG_CREDENTIALS_DEV }}
 
       - name: Build Docker image and push to Google Artifact Registry
+        if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
         id: docker-push-tagged
         uses: docker/build-push-action@v4
         with:
@@ -41,26 +42,4 @@ jobs:
       - id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: '${{ secrets.GCP_CREDENTIALS_DEV }}'
-
-      - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v2'
-
-      - name: 'Set project'
-        run: 'gcloud config set project pagoda-discovery-platform-dev'
-
-        # This is not pretty, but this step needs to be updated every time a new node is added.
-      - name: 'Update Nodes'
-        run: |
-          gcloud compute instances update-container multichain-dev-0 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-1 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-2 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-3 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-4 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-5 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-6 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-7 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-8 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-9 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-10 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
-          gcloud compute instances update-container multichain-dev-11 --zone us-central1-a --container-image=${{ env.IMAGE }}:${{ env.TAG }} & \
+          credentials_json: '${{ secrets.SIG_CREDENTIALS_DEV }}'
