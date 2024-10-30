@@ -103,7 +103,7 @@ pub struct ContractSignRequest {
 pub struct Indexer {
     latest_block_height: Arc<RwLock<LatestBlockHeight>>,
     last_updated_timestamp: Arc<RwLock<Instant>>,
-    latest_block_timestamp_nanoseconds: Arc<RwLock<Option<u64>>>,
+    latest_block_timestamp_nanosec: Arc<RwLock<Option<u64>>>,
     running_threshold: Duration,
     behind_threshold: Duration,
 }
@@ -117,7 +117,7 @@ impl Indexer {
         Self {
             latest_block_height: Arc::new(RwLock::new(latest_block_height)),
             last_updated_timestamp: Arc::new(RwLock::new(Instant::now())),
-            latest_block_timestamp_nanoseconds: Arc::new(RwLock::new(None)),
+            latest_block_timestamp_nanosec: Arc::new(RwLock::new(None)),
             running_threshold: Duration::from_secs(options.running_threshold),
             behind_threshold: Duration::from_secs(options.behind_threshold),
         }
@@ -135,11 +135,11 @@ impl Indexer {
 
     /// Check whether the indexer is behind with the latest block height from the chain.
     pub async fn is_behind(&self) -> bool {
-        if let Some(latest_block_timestamp_nanoseconds) =
-            *self.latest_block_timestamp_nanoseconds.read().await
+        if let Some(latest_block_timestamp_nanosec) =
+            *self.latest_block_timestamp_nanosec.read().await
         {
             crate::util::is_elapsed_longer_than_timeout(
-                latest_block_timestamp_nanoseconds / 1000000000,
+                latest_block_timestamp_nanosec / 1_000_000_000,
                 self.behind_threshold.as_millis() as u64,
             )
         } else {
@@ -154,12 +154,12 @@ impl Indexer {
     async fn update_block_height_and_timestamp(
         &self,
         block_height: BlockHeight,
-        block_timestamp_nanoseconds: u64,
+        block_timestamp_nanosec: u64,
         gcp: &GcpService,
     ) -> Result<(), DatastoreStorageError> {
         tracing::debug!(block_height, "update_block_height_and_timestamp");
         *self.last_updated_timestamp.write().await = Instant::now();
-        *self.latest_block_timestamp_nanoseconds.write().await = Some(block_timestamp_nanoseconds);
+        *self.latest_block_timestamp_nanosec.write().await = Some(block_timestamp_nanosec);
         self.latest_block_height
             .write()
             .await
