@@ -1,5 +1,6 @@
 use crate::config::{Config, LocalConfig, NetworkConfig, OverrideConfig};
 use crate::gcp::GcpService;
+use crate::mesh::Mesh;
 use crate::protocol::{MpcSignProtocol, SignQueue};
 use crate::{http_client, indexer, mesh, storage, web};
 use clap::Parser;
@@ -237,11 +238,12 @@ pub fn run(cmd: Cli) -> anyhow::Result<()> {
 
             tracing::info!(rpc_addr = rpc_client.rpc_addr(), "rpc client initialized");
             let signer = InMemorySigner::from_secret_key(account_id.clone(), account_sk);
+            let (mesh, mesh_state) = Mesh::init(mesh_options);
             let (protocol, protocol_state) = MpcSignProtocol::init(
                 my_address,
-                mpc_contract_id,
+                mpc_contract_id.clone(),
                 account_id,
-                rpc_client,
+                rpc_client.clone(),
                 signer,
                 receiver,
                 sign_queue,
@@ -255,13 +257,23 @@ pub fn run(cmd: Cli) -> anyhow::Result<()> {
                         sign_sk,
                     },
                 }),
-                mesh_options,
+                mesh_state.clone(),
                 message_options,
             );
 
+            let (contract_updater, contract_state) =
+                crate::contract_updater::ContractStateUpdater::init(rpc_client, mpc_contract_id);
+
             rt.block_on(async {
                 tracing::info!("protocol initialized");
-                let protocol_handle = tokio::spawn(async move { protocol.run().await });
+                let contract_state_clone = contract_state.clone();
+                let contract_handle =
+                    tokio::spawn(async move { contract_updater.run(contract_state_clone).await });
+                let contract_state_clone = contract_state.clone();
+                let mesh_handle =
+                    tokio::spawn(async move { mesh.run(contract_state_clone, mesh_state).await });
+                let protocol_handle =
+                    tokio::spawn(async move { protocol.run(contract_state).await });
                 tracing::info!("protocol thread spawned");
                 let cipher_sk = hpke::SecretKey::try_from_bytes(&hex::decode(cipher_sk)?)?;
                 let web_handle = tokio::spawn(async move {
@@ -269,6 +281,8 @@ pub fn run(cmd: Cli) -> anyhow::Result<()> {
                 });
                 tracing::info!("protocol http server spawned");
 
+                contract_handle.await??;
+                mesh_handle.await??;
                 protocol_handle.await??;
                 web_handle.await??;
                 tracing::info!("spinning down");

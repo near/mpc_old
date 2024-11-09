@@ -9,7 +9,7 @@ use std::{collections::HashSet, str::FromStr};
 
 use self::primitives::{Candidates, Participants, PkVotes, Votes};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct InitializingContractState {
     pub candidates: Candidates,
     pub threshold: usize,
@@ -26,7 +26,7 @@ impl From<mpc_contract::InitializingContractState> for InitializingContractState
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct RunningContractState {
     pub epoch: u64,
     pub participants: Participants,
@@ -51,7 +51,7 @@ impl From<mpc_contract::RunningContractState> for RunningContractState {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ResharingContractState {
     pub old_epoch: u64,
     pub old_participants: Participants,
@@ -78,7 +78,7 @@ impl From<mpc_contract::ResharingContractState> for ResharingContractState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ProtocolState {
     Initializing(InitializingContractState),
     Running(RunningContractState),

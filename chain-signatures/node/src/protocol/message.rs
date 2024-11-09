@@ -6,7 +6,7 @@ use super::triple::TripleId;
 use crate::gcp::error::SecretStorageError;
 use crate::http_client::SendError;
 use crate::indexer::ContractSignRequest;
-use crate::mesh::Mesh;
+use crate::protocol::MeshState;
 use crate::util;
 
 use async_trait::async_trait;
@@ -22,7 +22,7 @@ use tokio::sync::RwLock;
 #[async_trait::async_trait]
 pub trait MessageCtx {
     async fn me(&self) -> Participant;
-    fn mesh(&self) -> &Mesh;
+    fn mesh_state(&self) -> &Arc<RwLock<MeshState>>;
     fn cfg(&self) -> &crate::config::Config;
 }
 
@@ -236,8 +236,9 @@ impl MessageHandler for RunningState {
         ctx: C,
         queue: &mut MpcMessageQueue,
     ) -> Result<(), MessageHandleError> {
+        let mesh_state = ctx.mesh_state().read().await.clone();
         let protocol_cfg = &ctx.cfg().protocol;
-        let participants = ctx.mesh().active_participants();
+        let participants = &mesh_state.active_participants;
         let mut triple_manager = self.triple_manager.write().await;
 
         // remove the triple_id that has already failed or taken from the triple_bins

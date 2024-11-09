@@ -291,7 +291,7 @@ impl From<mpc_contract::primitives::PkVotes> for PkVotes {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Votes {
     pub votes: BTreeMap<AccountId, HashSet<AccountId>>,
 }
