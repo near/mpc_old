@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod config;
+pub mod contract_updater;
 pub mod gcp;
 pub mod http_client;
 pub mod indexer;
