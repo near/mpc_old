@@ -100,5 +100,6 @@ jobs:
         # RUSTSEC-2024-0344 and RUSTSEC-2022-0093 are both to do with ed25519 signatures in near-sdk, we don't sign things with this library so it's safe
         # RUSTSEC-2022-0054 wee-alloc is unmaintained, it's fine for now because we barely use an allocator and the contracts are short lived, but we should find a replacement/use the default allocator
         # RUSTSEC-2021-0145 atty can do an unallocated read with a custom allocator in windows. We don't run this in windows and we don't use a custom allocator.
+        # RUSTSEC-2024-0399 according to the description, this is not affecting us since we are not using Acceptor
         run: |
-          cargo audit --ignore RUSTSEC-2022-0093 --ignore RUSTSEC-2024-0344 --ignore RUSTSEC-2022-0054 --ignore RUSTSEC-2021-0145
+          cargo audit --ignore RUSTSEC-2022-0093 --ignore RUSTSEC-2024-0344 --ignore RUSTSEC-2022-0054 --ignore RUSTSEC-2021-0145 --ignore RUSTSEC-2024-0399
