@@ -3,17 +3,17 @@
 #########
 
 locals {
-  source_image         = var.source_image != "" ? var.source_image : "centos-7-v20201112"
-  source_image_family  = var.source_image_family != "" ? var.source_image_family : "centos-7"
-  source_image_project = var.source_image_project != "" ? var.source_image_project : "centos-cloud"
 
   boot_disk = [
     {
-      source_image = var.source_image != "" ? format("${local.source_image_project}/${local.source_image}") : format("${local.source_image_project}/${local.source_image_family}")
+      source_image = var.source_image
       disk_size_gb = var.disk_size_gb
       disk_type    = var.disk_type
       disk_labels  = var.disk_labels
       auto_delete  = var.auto_delete
+      device_name  = var.device_name
+      interface    = var.interface
+      mode         = var.mode
       boot         = "true"
     },
   ]
@@ -156,7 +156,7 @@ resource "google_compute_instance_template" "tpl" {
 
   lifecycle {
     create_before_destroy = "true"
-    ignore_changes = [ disk[0].source_image, labels ]
+    ignore_changes        = [disk[0].source_image, labels]
   }
 
   scheduling {

@@ -20,6 +20,11 @@ variable "image" {
   default     = "us-east1-docker.pkg.dev/pagoda-discovery-platform-prod/multichain-public/multichain-testnet:latest"
 }
 
+variable "source_image" {
+  type    = string
+  default = "projects/cos-cloud/global/images/cos-stable-117-18613-75-37"
+}
+
 variable "image_port" {
   description = "The port the image exposes for HTTP requests"
   type        = number
@@ -86,7 +91,7 @@ variable "static_env" {
   default = [
     {
       name  = "MPC_NEAR_RPC"
-      value = "https://rpc.testnet.near.org"
+      value = "https://rpc.testnet.fastnear.com"
     },
     {
       name  = "MPC_CONTRACT_ID"
@@ -122,4 +127,9 @@ variable "static_env" {
 variable "create_network" {
   default     = false
   description = "Do you want to create a new VPC network (true) or use default GCP network (false)?"
+}
+
+variable "redis_url" {
+  type    = string
+  default = "redis://127.0.0.1:6379"
 }

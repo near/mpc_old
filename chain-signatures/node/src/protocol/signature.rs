@@ -533,6 +533,9 @@ impl SignatureManager {
                                 ));
                             } else {
                                 self.completed.insert(sign_request_identifier.clone(), Instant::now());
+                                crate::metrics::SIGNATURE_GENERATOR_FAILURES
+                                    .with_label_values(&[self.my_account_id.as_str()])
+                                    .inc();
                                 crate::metrics::SIGNATURE_FAILURES
                                     .with_label_values(&[self.my_account_id.as_str()])
                                     .inc();

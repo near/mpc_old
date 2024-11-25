@@ -104,19 +104,21 @@ variable "resource_policies" {
 variable "source_image" {
   description = "Source disk image. If neither source_image nor source_image_family is specified, defaults to the latest public CentOS image."
   type        = string
-  default     = ""
 }
 
-variable "source_image_family" {
-  description = "Source image family. If neither source_image nor source_image_family is specified, defaults to the latest public CentOS image."
-  type        = string
-  default     = "centos-7"
+variable "device_name" {
+  description = "Disk device name"
+  default     = "persistent-disk-0"
 }
 
-variable "source_image_project" {
-  description = "Project where the source image comes from. The default project contains CentOS images."
-  type        = string
-  default     = "centos-cloud"
+variable "interface" {
+  default     = "SCSI"
+  description = "Interface type of the boot disk"
+}
+
+variable "mode" {
+  default     = "READ_WRITE"
+  description = "Boot disk mode"
 }
 
 variable "disk_size_gb" {
@@ -146,7 +148,7 @@ variable "disk_encryption_key" {
 variable "auto_delete" {
   description = "Whether or not the boot disk should be auto-deleted"
   type        = string
-  default     = "true"
+  default     = "false"
 }
 
 variable "additional_disks" {

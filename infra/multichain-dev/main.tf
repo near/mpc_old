@@ -19,13 +19,13 @@ module "gce-container" {
   container = {
     image = "europe-west1-docker.pkg.dev/near-cs-dev/multichain-public/multichain-dev:latest"
 
-    port  = "3000"
+    port = "3000"
 
     volumeMounts = [
       {
         mountPath = "/data"
-        name = "host-path"
-        readOnly = false
+        name      = "host-path"
+        readOnly  = false
       }
     ]
 
@@ -75,20 +75,20 @@ module "gce-container" {
         value = var.env
       },
       {
-        name = "MPC_REDIS_URL",
+        name  = "MPC_REDIS_URL",
         value = var.redis_url
       }
     ])
   }
 
   volumes = [
-      {
-        name = "host-path"
-        hostPath = {
-          path = "/var/redis"
-        }
+    {
+      name = "host-path"
+      hostPath = {
+        path = "/var/redis"
       }
-    ]
+    }
+  ]
 }
 
 resource "google_service_account" "service_account" {
@@ -130,14 +130,12 @@ module "mig_template" {
     email  = google_service_account.service_account.email,
     scopes = ["cloud-platform"]
   }
-  name_prefix          = "multichain-${count.index}"
-  source_image_family  = "cos-113-lts"
-  source_image_project = "cos-cloud"
-  machine_type         = "e2-medium"
+  name_prefix  = "multichain-${count.index}"
+  machine_type = "e2-medium"
 
   startup_script = "docker rm watchtower ; docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --debug --interval 30"
 
-  source_image = reverse(split("/", module.gce-container[count.index].source_image))[0]
+  source_image = var.source_image
   metadata     = merge(var.additional_metadata, { "gce-container-declaration" = module.gce-container["${count.index}"].metadata_value })
   tags = [
     "multichain"

@@ -15,8 +15,15 @@ module "gce-container" {
 
   container = {
     image = var.image
-    args  = ["start"]
-    port  = "3000"
+
+    port = "3000"
+    volumeMounts = [
+      {
+        mountPath = "/data"
+        name      = "host-path"
+        readOnly  = false
+      }
+    ]
 
     env = concat(var.static_env, [
       {
@@ -67,8 +74,20 @@ module "gce-container" {
         name  = "MPC_GCP_PROJECT_ID"
         value = var.project_id
       },
+      {
+        name  = "MPC_REDIS_URL",
+        value = var.redis_url
+      }
     ])
   }
+  volumes = [
+    {
+      name = "host-path"
+      hostPath = {
+        path = "/var/redis"
+      }
+    }
+  ]
 }
 
 resource "google_service_account" "service_account" {
@@ -78,10 +97,10 @@ resource "google_service_account" "service_account" {
 
 resource "google_project_iam_member" "sa-roles" {
   for_each = toset([
-      "roles/secretmanager.admin",
-      "roles/storage.objectAdmin",
-      "roles/iam.serviceAccountAdmin",
-      "roles/logging.logWriter"
+    "roles/secretmanager.admin",
+    "roles/storage.objectAdmin",
+    "roles/iam.serviceAccountAdmin",
+    "roles/logging.logWriter"
   ])
 
   role    = each.key
@@ -105,14 +124,12 @@ module "ig_template" {
     email  = google_service_account.service_account.email,
     scopes = ["cloud-platform"]
   }
-  name_prefix          = "multichain-testnet-${count.index}"
-  source_image_family  = "cos-113-lts"
-  source_image_project = "cos-cloud"
-  machine_type         = "n2d-standard-2"
+  name_prefix  = "multichain-testnet-${count.index}"
+  machine_type = "n2d-standard-2"
 
   startup_script = "docker rm watchtower ; docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --debug --interval 30"
 
-  source_image = reverse(split("/", module.gce-container[count.index].source_image))[0]
+  source_image = var.source_image
   metadata     = merge(var.additional_metadata, { "gce-container-declaration" = module.gce-container["${count.index}"].metadata_value })
   tags = [
     "multichain"

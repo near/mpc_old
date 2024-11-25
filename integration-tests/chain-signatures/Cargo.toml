@@ -28,6 +28,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1"
 url = { version = "2.4.0", features = ["serde"] }
+web3 = "0.19.0"
 deadpool-redis = "0.18.0"
 
 # crypto dependencies
@@ -41,6 +42,7 @@ k256 = { version = "0.13.1", features = ["sha256", "ecdsa", "serde"] }
 near-account-id = "1"
 near-crypto = "0.26.0"
 near-fetch = "0.6.0"
+near-sdk = "5.2.1"
 near-jsonrpc-client = "0.13.0"
 near-primitives = "0.26.0"
 near-lake-framework = { git = "https://github.com/near/near-lake-framework-rs", branch = "node/2.3.0" }
@@ -60,7 +62,6 @@ test-log = { version = "0.2.12", features = ["log", "trace"] }
 # crypto dependencies
 ecdsa = "0.16.9"
 ethers-core = "2.0.13"
-web3 = "0.19.0"
 secp256k1 = "0.28.2"
 
 [build-dependencies]
