@@ -8,7 +8,7 @@ use crate::protocol::presignature::{Presignature, PresignatureId};
 type PresigResult<T> = std::result::Result<T, anyhow::Error>;
 
 // Can be used to "clear" redis storage in case of a breaking change
-const PRESIGNATURE_STORAGE_VERSION: &str = "v1";
+const PRESIGNATURE_STORAGE_VERSION: &str = "v2";
 
 pub fn init(pool: &Pool, node_account_id: &AccountId) -> PresignatureStorage {
     PresignatureStorage {

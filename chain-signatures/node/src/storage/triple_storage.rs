@@ -8,7 +8,7 @@ use near_account_id::AccountId;
 type TripleResult<T> = std::result::Result<T, anyhow::Error>;
 
 // Can be used to "clear" redis storage in case of a breaking change
-const TRIPLE_STORAGE_VERSION: &str = "v1";
+const TRIPLE_STORAGE_VERSION: &str = "v2";
 
 pub fn init(pool: &Pool, account_id: &AccountId) -> TripleStorage {
     TripleStorage {
