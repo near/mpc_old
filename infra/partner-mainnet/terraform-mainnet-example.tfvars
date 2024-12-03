@@ -2,7 +2,7 @@ env        = "mainnet"
 project_id = "<your-project-id>"
 network    = "default"
 subnetwork = "default"
-image      = "us-east1-docker.pkg.dev/pagoda-discovery-platform-prod/multichain-public/multichain-mainnet:latest"
+image      = "europe-west1-docker.pkg.dev/near-cs-mainnet/multichain-public/multichain-mainnet:latest"
 region     = "europe-west1"
 zone       = "europe-west1-b"
 # These will be specific to your node

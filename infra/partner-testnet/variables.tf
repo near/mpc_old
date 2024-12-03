@@ -17,7 +17,7 @@ variable "mig_name" {
 variable "image" {
   description = "The Docker image to deploy to GCE instances. Note: This is a public image repository used for updating your nodes, please do not change this"
   type        = string
-  default     = "us-east1-docker.pkg.dev/pagoda-discovery-platform-prod/multichain-public/multichain-testnet:latest"
+  default     = "europe-west1-docker.pkg.dev/near-cs-testnet/multichain-public/multichain-testnet:latest"
 }
 
 variable "source_image" {
