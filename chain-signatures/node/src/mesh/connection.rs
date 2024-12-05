@@ -206,7 +206,7 @@ impl Pool {
         let empty_msg: Vec<Ciphered> = Vec::new();
         crate::http_client::send_encrypted(
             *participant,
-            &self.http,
+            self.http.clone(),
             participant_info.url.clone(),
             empty_msg,
             self.fetch_participant_timeout,

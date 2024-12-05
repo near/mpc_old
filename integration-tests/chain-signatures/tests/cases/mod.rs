@@ -37,7 +37,7 @@ async fn test_multichain_reshare() -> anyhow::Result<()> {
             actions::single_signature_production(&ctx, &state).await?;
 
             tracing::info!("!!! Add participant 3");
-            assert!(ctx.add_participant(None).await.is_ok());
+            ctx.add_participant(None).await.unwrap();
             let state = wait_for::running_mpc(&ctx, None).await?;
             wait_for::has_at_least_triples(&ctx, 2).await?;
             wait_for::has_at_least_presignatures(&ctx, 2).await?;
@@ -48,14 +48,12 @@ async fn test_multichain_reshare() -> anyhow::Result<()> {
                 state.participants.keys().nth(2).unwrap().clone().as_ref(),
             )
             .unwrap();
-            assert!(ctx.remove_participant(Some(&account_2)).await.is_ok());
+            ctx.remove_participant(Some(&account_2)).await.unwrap();
             let account_0 = near_workspaces::types::AccountId::from_str(
                 state.participants.keys().next().unwrap().clone().as_ref(),
             )
             .unwrap();
-            let node_cfg_0 = ctx.remove_participant(Some(&account_0)).await;
-            assert!(node_cfg_0.is_ok());
-            let node_cfg_0 = node_cfg_0.unwrap();
+            let node_cfg_0 = ctx.remove_participant(Some(&account_0)).await.unwrap();
             let state = wait_for::running_mpc(&ctx, None).await?;
             wait_for::has_at_least_triples(&ctx, 2).await?;
             wait_for::has_at_least_presignatures(&ctx, 2).await?;
@@ -65,14 +63,14 @@ async fn test_multichain_reshare() -> anyhow::Result<()> {
             assert!(ctx.remove_participant(None).await.is_err());
 
             tracing::info!("!!! Add participant 5");
-            assert!(ctx.add_participant(None).await.is_ok());
+            ctx.add_participant(None).await.unwrap();
             let state = wait_for::running_mpc(&ctx, None).await?;
             wait_for::has_at_least_triples(&ctx, 2).await?;
             wait_for::has_at_least_presignatures(&ctx, 2).await?;
             actions::single_signature_production(&ctx, &state).await?;
 
             tracing::info!("!!! Add back participant 0");
-            assert!(ctx.add_participant(Some(node_cfg_0)).await.is_ok());
+            ctx.add_participant(Some(node_cfg_0)).await.unwrap();
             let state = wait_for::running_mpc(&ctx, None).await?;
             wait_for::has_at_least_triples(&ctx, 2).await?;
             wait_for::has_at_least_presignatures(&ctx, 2).await?;
@@ -471,19 +469,19 @@ async fn test_multichain_reshare_with_lake_congestion() -> anyhow::Result<()> {
             add_latency(&ctx.nodes.proxy_name_for_node(1), true, 1.0, 1_000, 100).await?;
             // remove node2, node0 and node1 should still reach concensus
             // this fails if the latency above is too long (10s)
-            assert!(ctx.remove_participant(None).await.is_ok());
+            ctx.remove_participant(None).await.unwrap();
             let state = wait_for::running_mpc(&ctx, Some(0)).await?;
             assert!(state.participants.len() == 2);
             // Going below T should error out
             assert!(ctx.remove_participant(None).await.is_err());
             let state = wait_for::running_mpc(&ctx, Some(0)).await?;
             assert!(state.participants.len() == 2);
-            assert!(ctx.add_participant(None).await.is_ok());
+            ctx.add_participant(None).await.unwrap();
             // add latency to node2->rpc
             add_latency(&ctx.nodes.proxy_name_for_node(2), true, 1.0, 1_000, 100).await?;
             let state = wait_for::running_mpc(&ctx, Some(0)).await?;
             assert!(state.participants.len() == 3);
-            assert!(ctx.remove_participant(None).await.is_ok());
+            ctx.remove_participant(None).await.unwrap();
             let state = wait_for::running_mpc(&ctx, Some(0)).await?;
             assert!(state.participants.len() == 2);
             // make sure signing works after reshare

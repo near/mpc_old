@@ -307,30 +307,11 @@ pub(crate) static PROTOCOL_LATENCY_ITER_MESSAGE: Lazy<HistogramVec> = Lazy::new(
     .unwrap()
 });
 
-pub(crate) static NUM_SEND_ENCRYPTED_FAILURE: Lazy<CounterVec> = Lazy::new(|| {
-    try_create_counter_vec(
-        "multichain_send_encrypted_failure",
-        "number of successful send encrypted",
-        &["node_account_id"],
-    )
-    .unwrap()
-});
-
 pub(crate) static NUM_SEND_ENCRYPTED_TOTAL: Lazy<CounterVec> = Lazy::new(|| {
     try_create_counter_vec(
         "multichain_send_encrypted_total",
         "number total send encrypted",
         &["node_account_id"],
-    )
-    .unwrap()
-});
-
-pub(crate) static FAILED_SEND_ENCRYPTED_LATENCY: Lazy<HistogramVec> = Lazy::new(|| {
-    try_create_histogram_vec(
-        "multichain_failed_send_encrypted_ms",
-        "Latency of failed send encrypted.",
-        &["node_account_id"],
-        Some(exponential_buckets(0.5, 1.5, 20).unwrap()),
     )
     .unwrap()
 });

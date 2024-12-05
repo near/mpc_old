@@ -55,7 +55,7 @@ pub async fn running_mpc<'a>(
         }
     );
     is_running
-        .retry(&ExponentialBuilder::default().with_max_times(6))
+        .retry(&ExponentialBuilder::default().with_max_times(7))
         .await
         .with_context(|| err_msg)
 }

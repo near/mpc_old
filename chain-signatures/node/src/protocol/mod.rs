@@ -256,15 +256,17 @@ impl MpcSignProtocol {
             crate::metrics::PROTOCOL_ITER_CNT
                 .with_label_values(&[my_account_id.as_str()])
                 .inc();
+
+            let msg_time = Instant::now();
+            let mut msg_count = 0;
             loop {
                 let msg_result = self.receiver.try_recv();
                 match msg_result {
                     Ok(msg) => {
-                        tracing::debug!("received a new message");
+                        msg_count += 1;
                         queue.push(msg);
                     }
                     Err(TryRecvError::Empty) => {
-                        tracing::debug!("no new messages received");
                         break;
                     }
                     Err(TryRecvError::Disconnected) => {
@@ -273,6 +275,7 @@ impl MpcSignProtocol {
                     }
                 }
             }
+            tracing::debug!("received {msg_count} messages in {:?}", msg_time.elapsed());
 
             let contract_state = if last_state_update.elapsed() > Duration::from_secs(1) {
                 let contract_state = match rpc_client::fetch_mpc_contract_state(
