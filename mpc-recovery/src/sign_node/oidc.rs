@@ -98,6 +98,21 @@ impl OidcToken {
 
         Ok((header, claims, signature.into()))
     }
+
+    // NOTE: code taken directly from our implementation of token.decode but without the verification step
+    pub fn decode_unverified(&self) -> anyhow::Result<(jwt::Header, IdTokenClaims, String)> {
+        let mut parts = self.as_ref().rsplitn(2, '.');
+        let (Some(signature), Some(message)) = (parts.next(), parts.next()) else {
+            anyhow::bail!("could not split into signature and message for OIDC token");
+        };
+        let mut parts = message.rsplitn(2, '.');
+        let (Some(payload), Some(header)) = (parts.next(), parts.next()) else {
+            anyhow::bail!("could not split into payload and header for OIDC token");
+        };
+        let header: jwt::Header = serde_json::from_slice(&b64_decode(header)?)?;
+        let claims: IdTokenClaims = serde_json::from_slice(&b64_decode(payload)?)?;
+        Ok((header, claims, signature.to_string()))
+    }
 }
 
 fn b64_decode<T: AsRef<[u8]>>(input: T) -> anyhow::Result<Vec<u8>> {

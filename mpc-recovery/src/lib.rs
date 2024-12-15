@@ -1,6 +1,7 @@
 // TODO: FIXME: Remove this once we have a better way to handle these large errors
 #![allow(clippy::result_large_err)]
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use aes_gcm::aead::consts::U32;
@@ -113,9 +114,9 @@ pub enum Cli {
         /// GCP datastore URL
         #[arg(long, env("MPC_RECOVERY_GCP_DATASTORE_URL"))]
         gcp_datastore_url: Option<String>,
-        /// URL to the public key used to sign JWT tokens
-        #[arg(long, env("MPC_RECOVERY_JWT_SIGNATURE_PK_URL"))]
-        jwt_signature_pk_url: String,
+        /// URLs of the public keys used by all issuers
+        #[arg(long, value_parser = parse_json_str::<HashMap<String, String>>, env("MPC_RECOVERY_JWT_SIGNATURE_PK_URLS"))]
+        jwt_signature_pk_urls: HashMap<String, String>,
         /// Enables export of span data using opentelemetry protocol.
         #[clap(flatten)]
         logging_options: logging::Options,
@@ -142,9 +143,9 @@ pub enum Cli {
         /// GCP datastore URL
         #[arg(long, env("MPC_RECOVERY_GCP_DATASTORE_URL"))]
         gcp_datastore_url: Option<String>,
-        /// URL to the public key used to sign JWT tokens
-        #[arg(long, env("MPC_RECOVERY_JWT_SIGNATURE_PK_URL"))]
-        jwt_signature_pk_url: String,
+        /// URLs of the public keys used by all issuers
+        #[arg(long, value_parser = parse_json_str::<HashMap<String, String>>, env("MPC_RECOVERY_JWT_SIGNATURE_PK_URLS"))]
+        jwt_signature_pk_urls: HashMap<String, String>,
         /// Enables export of span data using opentelemetry protocol.
         #[clap(flatten)]
         logging_options: logging::Options,
@@ -203,7 +204,7 @@ pub async fn run(cmd: Cli) -> anyhow::Result<()> {
             fast_auth_partners_filepath: partners_filepath,
             gcp_project_id,
             gcp_datastore_url,
-            jwt_signature_pk_url,
+            jwt_signature_pk_urls,
             logging_options,
         } => {
             let _subscriber_guard = logging::subscribe_global(
@@ -231,7 +232,7 @@ pub async fn run(cmd: Cli) -> anyhow::Result<()> {
                 near_root_account,
                 account_creator_signer,
                 partners,
-                jwt_signature_pk_url,
+                jwt_signature_pk_urls,
             };
 
             run_leader_node(config).await;
@@ -244,7 +245,7 @@ pub async fn run(cmd: Cli) -> anyhow::Result<()> {
             web_port,
             gcp_project_id,
             gcp_datastore_url,
-            jwt_signature_pk_url,
+            jwt_signature_pk_urls,
             logging_options,
         } => {
             let _subscriber_guard = logging::subscribe_global(
@@ -272,7 +273,7 @@ pub async fn run(cmd: Cli) -> anyhow::Result<()> {
                 node_key: sk_share,
                 cipher,
                 port: web_port,
-                jwt_signature_pk_url,
+                jwt_signature_pk_urls,
             };
             run_sign_node(config).await;
         }
@@ -428,7 +429,7 @@ impl Cli {
                 fast_auth_partners_filepath,
                 gcp_project_id,
                 gcp_datastore_url,
-                jwt_signature_pk_url,
+                jwt_signature_pk_urls,
                 logging_options,
             } => {
                 let mut buf = vec![
@@ -445,8 +446,6 @@ impl Cli {
                     account_creator_id.to_string(),
                     "--gcp-project-id".to_string(),
                     gcp_project_id,
-                    "--jwt-signature-pk-url".to_string(),
-                    jwt_signature_pk_url,
                 ];
 
                 if let Some(partners) = fast_auth_partners {
@@ -465,6 +464,11 @@ impl Cli {
                     buf.push("--sign-nodes".to_string());
                     buf.push(sign_node);
                 }
+
+                let jwt_signature_pk_urls = serde_json::to_string(&jwt_signature_pk_urls).unwrap();
+                buf.push("--jwt-signature-pk-urls".to_string());
+                buf.push(jwt_signature_pk_urls);
+
                 let account_creator_sk = serde_json::to_string(&account_creator_sk).unwrap();
                 buf.push("--account-creator-sk".to_string());
                 buf.push(account_creator_sk);
@@ -480,7 +484,7 @@ impl Cli {
                 sk_share,
                 gcp_project_id,
                 gcp_datastore_url,
-                jwt_signature_pk_url,
+                jwt_signature_pk_urls,
                 logging_options,
             } => {
                 let mut buf = vec![
@@ -493,8 +497,6 @@ impl Cli {
                     web_port.to_string(),
                     "--gcp-project-id".to_string(),
                     gcp_project_id,
-                    "--jwt-signature-pk-url".to_string(),
-                    jwt_signature_pk_url,
                 ];
                 if let Some(key) = cipher_key {
                     buf.push("--cipher-key".to_string());
@@ -508,6 +510,11 @@ impl Cli {
                     buf.push("--gcp-datastore-url".to_string());
                     buf.push(gcp_datastore_url);
                 }
+
+                let jwt_signature_pk_urls = serde_json::to_string(&jwt_signature_pk_urls).unwrap();
+                buf.push("--jwt-signature-pk-urls".to_string());
+                buf.push(jwt_signature_pk_urls);
+
                 buf.extend(logging_options.into_str_args());
 
                 buf

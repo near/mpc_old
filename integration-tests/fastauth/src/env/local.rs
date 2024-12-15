@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::env::{LeaderNodeApi, SignerNodeApi};
 use crate::mpc::{self, NodeProcess};
 use crate::util;
@@ -29,6 +31,8 @@ impl SignerNode {
         cipher_key: &GenericArray<u8, U32>,
     ) -> anyhow::Result<Self> {
         let web_port = util::pick_unused_port().await?;
+        let mut jwt_signature_pk_urls = HashMap::new();
+        jwt_signature_pk_urls.insert(ctx.issuer.clone(), ctx.oidc_provider.jwt_pk_url.clone());
         let cli = mpc_recovery::Cli::StartSign {
             env: ctx.env.clone(),
             node_id,
@@ -37,7 +41,7 @@ impl SignerNode {
             cipher_key: Some(hex::encode(cipher_key)),
             gcp_project_id: ctx.gcp_project_id.clone(),
             gcp_datastore_url: Some(ctx.datastore.local_address.clone()),
-            jwt_signature_pk_url: ctx.oidc_provider.jwt_pk_local_url.clone(),
+            jwt_signature_pk_urls,
             logging_options: logging::Options::default(),
         };
 
@@ -87,6 +91,8 @@ impl LeaderNode {
         tracing::info!("Running leader node...");
         let account_creator = &ctx.relayer_ctx.creator_account;
         let web_port = util::pick_unused_port().await?;
+        let mut jwt_signature_pk_urls = HashMap::new();
+        jwt_signature_pk_urls.insert(ctx.issuer.clone(), ctx.oidc_provider.jwt_pk_url.clone());
         let cli = mpc_recovery::Cli::StartLeader {
             env: ctx.env.clone(),
             web_port,
@@ -118,7 +124,7 @@ impl LeaderNode {
             ),
             gcp_project_id: ctx.gcp_project_id.clone(),
             gcp_datastore_url: Some(ctx.datastore.local_address.clone()),
-            jwt_signature_pk_url: ctx.oidc_provider.jwt_pk_local_url.clone(),
+            jwt_signature_pk_urls,
             logging_options: logging::Options::default(),
         };
 

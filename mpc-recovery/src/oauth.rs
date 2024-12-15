@@ -1,5 +1,8 @@
+use anyhow::{Context, Result};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use jsonwebtoken::{Algorithm, DecodingKey};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::firewall::allowed::OidcProviderList;
@@ -13,15 +16,21 @@ pub async fn verify_oidc_token(
     token: &OidcToken,
     oidc_providers: Option<&OidcProviderList>,
     client: &reqwest::Client,
-    jwt_signature_pk_url: &str,
+    jwt_signature_pk_urls: &HashMap<String, String>,
 ) -> anyhow::Result<IdTokenClaims> {
-    let public_keys = get_pagoda_firebase_public_keys(client, jwt_signature_pk_url)
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to get Firebase public key: {e}"))?;
-    tracing::info!("verify_oidc_token firebase public keys: {public_keys:?}");
+    let (_, claims, _) = token.decode_unverified()?;
+    let issuer = &claims.iss;
 
-    let mut last_occured_error =
-        anyhow::anyhow!("Unexpected error. Firebase public keys not found");
+    let jwks_url = jwt_signature_pk_urls
+        .get(issuer)
+        .ok_or_else(|| anyhow::anyhow!("No JWKS URL found for issuer: {}", issuer))?;
+
+    let public_keys = get_public_keys(client, jwks_url)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to get public keys: {e}"))?;
+    tracing::info!("verify_oidc_token public keys: {public_keys:?}");
+
+    let mut last_occured_error = anyhow::anyhow!("Unexpected error. Public keys not found");
     for public_key in public_keys {
         match validate_jwt(token, public_key.as_bytes(), oidc_providers) {
             Ok(claims) => {
@@ -99,13 +108,49 @@ impl IdTokenClaims {
     }
 }
 
-pub async fn get_pagoda_firebase_public_keys(
-    client: &reqwest::Client,
-    jwt_signature_pk_url: &str,
-) -> anyhow::Result<Vec<String>> {
-    let response = client.get(jwt_signature_pk_url).send().await?;
-    let json: HashMap<String, String> = response.json().await?;
-    Ok(json.into_values().collect())
+pub async fn get_public_keys(client: &reqwest::Client, jwks_url: &str) -> Result<Vec<String>> {
+    let response = client
+        .get(jwks_url)
+        .send()
+        .await
+        .context("Failed to send request")?;
+
+    let json: Value = response.json().await.context("Failed to parse JSON")?;
+
+    match json {
+        Value::Object(obj) if obj.contains_key("keys") => parse_jwks_format(&obj),
+        Value::Object(obj) => parse_firebase_format(&obj),
+        _ => {
+            tracing::warn!("Unexpected response format from {}", jwks_url);
+            Ok(vec![])
+        }
+    }
+}
+
+fn parse_jwks_format(obj: &serde_json::Map<String, Value>) -> Result<Vec<String>> {
+    obj["keys"]
+        .as_array()
+        .context("'keys' is not an array")?
+        .iter()
+        .filter_map(|key| match (key["n"].as_str(), key["e"].as_str()) {
+            (Some(n), Some(e)) => Some(format_rsa_key(n, e)),
+            _ => None,
+        })
+        .collect::<Result<Vec<_>>>()
+}
+
+fn parse_firebase_format(obj: &serde_json::Map<String, Value>) -> Result<Vec<String>> {
+    Ok(obj
+        .values()
+        .filter_map(|value| value.as_str().map(String::from))
+        .collect())
+}
+
+fn format_rsa_key(n: &str, e: &str) -> Result<String> {
+    Ok(format!(
+        "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----",
+        BASE64.encode(format!("{}:{}", n, e))
+    ))
 }
 
 #[cfg(test)]
@@ -124,7 +169,8 @@ mod tests {
         let url =
         "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
         let client = reqwest::Client::new();
-        let pk = get_pagoda_firebase_public_keys(&client, url).await.unwrap();
+        let pk = get_public_keys(&client, url).await.unwrap();
+
         assert!(!pk.is_empty());
     }
 

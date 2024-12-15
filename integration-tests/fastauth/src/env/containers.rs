@@ -40,6 +40,7 @@ use testcontainers::{
 use tokio::io::AsyncWriteExt;
 use tracing;
 
+use std::collections::HashMap;
 use std::fs;
 
 use crate::env::{Context, LeaderNodeApi, SignerNodeApi};
@@ -522,6 +523,8 @@ impl SignerNode<'_> {
         cipher_key: &GenericArray<u8, U32>,
     ) -> anyhow::Result<SignerNode<'a>> {
         tracing::info!("Running signer node container {}...", node_id);
+        let mut jwt_signature_pk_urls = HashMap::new();
+        jwt_signature_pk_urls.insert(ctx.issuer.clone(), ctx.oidc_provider.jwt_pk_url.clone());
         let args = mpc_recovery::Cli::StartSign {
             env: ctx.env.clone(),
             node_id: node_id as u64,
@@ -530,7 +533,7 @@ impl SignerNode<'_> {
             cipher_key: Some(hex::encode(cipher_key)),
             gcp_project_id: ctx.gcp_project_id.clone(),
             gcp_datastore_url: Some(ctx.datastore.address.clone()),
-            jwt_signature_pk_url: ctx.oidc_provider.jwt_pk_url.clone(),
+            jwt_signature_pk_urls,
             logging_options: logging::Options::default(),
         }
         .into_str_args();
@@ -636,6 +639,8 @@ impl<'a> LeaderNode<'a> {
     pub async fn run(ctx: &Context<'a>, sign_nodes: Vec<String>) -> anyhow::Result<LeaderNode<'a>> {
         tracing::info!("Running leader node container...");
         let account_creator = &ctx.relayer_ctx.creator_account;
+        let mut jwt_signature_pk_urls = HashMap::new();
+        jwt_signature_pk_urls.insert(ctx.issuer.clone(), ctx.oidc_provider.jwt_pk_url.clone());
         let args = mpc_recovery::Cli::StartLeader {
             env: ctx.env.clone(),
             web_port: Self::CONTAINER_PORT,
@@ -667,7 +672,7 @@ impl<'a> LeaderNode<'a> {
             fast_auth_partners_filepath: None,
             gcp_project_id: ctx.gcp_project_id.clone(),
             gcp_datastore_url: Some(ctx.datastore.address.to_string()),
-            jwt_signature_pk_url: ctx.oidc_provider.jwt_pk_url.to_string(),
+            jwt_signature_pk_urls,
             logging_options: logging::Options::default(),
         }
         .into_str_args();

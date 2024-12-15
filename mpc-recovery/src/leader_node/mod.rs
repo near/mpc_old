@@ -34,6 +34,7 @@ use near_primitives::delegate_action::{DelegateAction, NonDelegateAction};
 use near_primitives::transaction::{Action, DeleteAccountAction, DeleteKeyAction};
 use near_primitives::types::AccountId;
 use prometheus::{Encoder, TextEncoder};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
@@ -47,7 +48,7 @@ pub struct Config {
     // TODO: temporary solution
     pub account_creator_signer: KeyRotatingSigner,
     pub partners: PartnerList,
-    pub jwt_signature_pk_url: String,
+    pub jwt_signature_pk_urls: HashMap<String, String>,
 }
 
 pub async fn run(config: Config) {
@@ -59,7 +60,7 @@ pub async fn run(config: Config) {
         near_root_account,
         account_creator_signer,
         partners,
-        jwt_signature_pk_url,
+        jwt_signature_pk_urls,
     } = config;
     let _span = tracing::debug_span!("run", env, port);
     tracing::debug!(?sign_nodes, "running a leader node");
@@ -74,7 +75,7 @@ pub async fn run(config: Config) {
         near_root_account: near_root_account.parse().unwrap(),
         account_creator_signer,
         partners,
-        jwt_signature_pk_url,
+        jwt_signature_pk_urls,
     });
 
     // Get keys from all sign nodes, and broadcast them out as a set.
@@ -198,7 +199,7 @@ struct LeaderState {
     // TODO: temporary solution
     account_creator_signer: KeyRotatingSigner,
     partners: PartnerList,
-    jwt_signature_pk_url: String,
+    jwt_signature_pk_urls: HashMap<String, String>,
 }
 
 async fn mpc_public_key(
@@ -302,7 +303,7 @@ async fn process_user_credentials(
         &request.oidc_token,
         Some(&state.partners.oidc_providers()),
         &state.reqwest_client,
-        &state.jwt_signature_pk_url,
+        &state.jwt_signature_pk_urls,
     )
     .await
     .map_err(LeaderNodeError::OidcVerificationFailed)?;
@@ -334,7 +335,7 @@ async fn process_new_account(
         &request.oidc_token,
         Some(&state.partners.oidc_providers()),
         &state.reqwest_client,
-        &state.jwt_signature_pk_url,
+        &state.jwt_signature_pk_urls,
     )
     .await
     .map_err(LeaderNodeError::OidcVerificationFailed)?;
@@ -477,7 +478,7 @@ async fn process_sign(
         &request.oidc_token,
         Some(&state.partners.oidc_providers()),
         &state.reqwest_client,
-        &state.jwt_signature_pk_url,
+        &state.jwt_signature_pk_urls,
     )
     .await
     .map_err(LeaderNodeError::OidcVerificationFailed)?;
