@@ -180,7 +180,7 @@ impl Pool {
         &self,
         participant_info: &ParticipantInfo,
     ) -> Result<StateView, FetchParticipantError> {
-        let Ok(Ok(url)) = Url::parse(&participant_info.url).map(|url| url.join("/state")) else {
+        let Ok(url) = participant_info.url_for_path("/state") else {
             return Err(FetchParticipantError::InvalidUrl);
         };
         match tokio::time::timeout(
@@ -207,7 +207,7 @@ impl Pool {
         crate::http_client::send_encrypted(
             *participant,
             &self.http,
-            participant_info.url.clone(),
+            participant_info,
             empty_msg,
             self.fetch_participant_timeout,
         )
