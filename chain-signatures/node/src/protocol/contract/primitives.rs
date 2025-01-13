@@ -6,6 +6,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     str::FromStr,
 };
+use url::Url;
 
 type ParticipantId = u32;
 
@@ -29,6 +30,16 @@ impl ParticipantInfo {
             cipher_pk: hpke::PublicKey::from_bytes(&[0; 32]),
             sign_pk: near_crypto::PublicKey::empty(near_crypto::KeyType::ED25519),
         }
+    }
+
+    /// Parses the url as well as appending a path to it. Tolerates not having a protocol.
+    pub fn url_for_path(&self, path: &str) -> Result<Url, url::ParseError> {
+        let base_url = if self.url.starts_with("http://") || self.url.starts_with("https://") {
+            Url::parse(&self.url)?
+        } else {
+            Url::parse(&format!("http://{}", self.url))?
+        };
+        base_url.join(path)
     }
 }
 
@@ -321,5 +332,33 @@ impl From<mpc_contract::primitives::Votes> for Votes {
                 })
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_url_for_path() {
+        let mut participant_info = super::ParticipantInfo {
+            id: 0,
+            account_id: "p-0".parse().unwrap(),
+            url: "http://1.1.1.1:8080".to_string(),
+            cipher_pk: mpc_keys::hpke::PublicKey::from_bytes(&[0; 32]),
+            sign_pk: near_crypto::PublicKey::empty(near_crypto::KeyType::ED25519),
+        };
+        let url = participant_info.url_for_path("/msg").unwrap();
+        assert_eq!(url.as_str(), "http://1.1.1.1:8080/msg");
+
+        participant_info.url = "https://my.domain".to_string();
+        let url = participant_info.url_for_path("/msg").unwrap();
+        assert_eq!(url.as_str(), "https://my.domain/msg");
+
+        participant_info.url = "my.domain".to_string();
+        let url = participant_info.url_for_path("/state").unwrap();
+        assert_eq!(url.as_str(), "http://my.domain/state");
+
+        participant_info.url = "http://my.domain/subpath".to_string();
+        let url = participant_info.url_for_path("/state").unwrap();
+        assert_eq!(url.as_str(), "http://my.domain/state");
     }
 }

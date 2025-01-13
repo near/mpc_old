@@ -4,7 +4,7 @@ use crate::protocol::MpcMessage;
 use cait_sith::protocol::Participant;
 use mpc_contract::config::ProtocolConfig;
 use mpc_keys::hpke::Ciphered;
-use reqwest::{Client, IntoUrl};
+use reqwest::Client;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::str::Utf8Error;
 use std::time::{Duration, Instant};
@@ -38,22 +38,23 @@ pub enum SendError {
     MalformedResponse(Utf8Error),
     #[error("encryption error: {0}")]
     EncryptionError(String),
+    #[error("url parse error: {0}")]
+    UrlParseError(#[from] url::ParseError),
     #[error("http request timeout: {0}")]
     Timeout(String),
     #[error("participant is not alive: {0}")]
     ParticipantNotAlive(String),
 }
 
-pub async fn send_encrypted<U: IntoUrl>(
+pub async fn send_encrypted(
     from: Participant,
     client: &Client,
-    url: U,
+    to: &ParticipantInfo,
     message: Vec<Ciphered>,
     request_timeout: Duration,
 ) -> Result<(), SendError> {
     let _span = tracing::info_span!("message_request");
-    let mut url = url.into_url()?;
-    url.set_path("msg");
+    let url = to.url_for_path("/msg")?;
     tracing::debug!(?from, to = %url, "making http request: sending encrypted message");
     let action = || async {
         let response = tokio::time::timeout(
@@ -177,7 +178,7 @@ impl MessageQueue {
                 if let Err(err) = send_encrypted(
                     from,
                     client,
-                    &info.url,
+                    &info,
                     encrypted_partition,
                     Duration::from_millis(self.message_options.timeout),
                 )
