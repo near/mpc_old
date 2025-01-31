@@ -35,6 +35,10 @@ variable "zone" {
   type = string
 }
 
+variable "near_boot_nodes" {
+  type = string
+}
+
 variable "network" {
   description = "The GCP network"
   type        = string
@@ -65,11 +69,6 @@ variable "env_variables" {
 variable "node_configs" {
   type = list(object({
     account                            = string
-    cipher_pk                          = string
-    account_sk_secret_id               = string
-    cipher_sk_secret_id                = string
-    sign_sk_secret_id                  = string
-    sk_share_secret_id                 = string
     gcp_local_encryption_key_secret_id = string
     gcp_keyshare_secret_id             = string
     gcp_p2p_private_key_secret_id      = string
