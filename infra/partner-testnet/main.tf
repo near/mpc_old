@@ -223,15 +223,15 @@ resource "google_compute_region_health_check" "multichain_tcp_region_healthcheck
   name               = "multichain-healthcheck"
   project            = var.project_id
   region             = var.region
-  tcp_health_check {
-    port         = 80
+  http_health_check {
+    port         = 3030
     proxy_header = "NONE"
+    request_path = "/metrics"
   }
 
   timeout_sec         = 5
   unhealthy_threshold = 2
 }
-
 
 resource "google_compute_region_backend_service" "multichain_backend_passthrough" {
   connection_draining_timeout_sec = 300
@@ -251,6 +251,12 @@ resource "google_compute_region_backend_service" "multichain_backend_passthrough
   region           = var.region
   session_affinity = "CLIENT_IP_PORT_PROTO"
   timeout_sec      = 30
+
+  backend {
+    group = google_compute_instance_group.multichain_group.id
+    balancing_mode = "CONNECTION"
+    failover = false
+  }
 }
 
 resource "google_compute_forwarding_rule" "multichain_frontend_passthrough" {
