@@ -249,7 +249,7 @@ resource "google_compute_region_backend_service" "multichain_backend_passthrough
   protocol         = "TCP"
   project          = var.project_id
   region           = var.region
-  session_affinity = "CLIENT_IP_PORT_PROTO"
+  session_affinity = "NONE"
   timeout_sec      = 30
 
   backend {
