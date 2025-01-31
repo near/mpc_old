@@ -1,7 +1,7 @@
 terraform {
   backend "gcs" {
-    bucket = "multichain-terraform-{your_entity_name}"
-    prefix = "state/testnet"
+    bucket = "nearone-terraform-mpc"
+    prefix = "state/infra/mpc-cluster-peter-upgrade-test"
   }
 
   required_providers {
