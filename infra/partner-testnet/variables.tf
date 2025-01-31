@@ -17,7 +17,7 @@ variable "mig_name" {
 variable "image" {
   description = "The Docker image to deploy to GCE instances. Note: This is a public image repository used for updating your nodes, please do not change this"
   type        = string
-  default     = "docker.io/nearone/mpc-node-gcp:latest"
+  default     = "us-east1-docker.pkg.dev/pagoda-discovery-platform-prod/multichain-public/multichain-testnet:latest"
 }
 
 variable "image_port" {
@@ -64,28 +64,18 @@ variable "env_variables" {
 
 variable "node_configs" {
   type = list(object({
-    account                            = string
-    cipher_pk                          = string
-    account_sk_secret_id               = string
-    cipher_sk_secret_id                = string
-    sign_sk_secret_id                  = string
-    sk_share_secret_id                 = string
-    gcp_local_encryption_key_secret_id = string
-    gcp_keyshare_secret_id             = string
-    gcp_p2p_private_key_secret_id      = string
-    gcp_account_sk_secret_id           = string
-    mpc_home_dir                       = string
+    account              = string
+    cipher_pk            = string
+    account_sk_secret_id = string
+    cipher_sk_secret_id  = string
+    sign_sk_secret_id    = string
+    sk_share_secret_id   = string
   }))
 }
 
 variable "env" {
   type    = string
   default = "dev"
-}
-
-variable "scenario" {
-  type    = string
-  default = "old"
 }
 
 variable "static_env" {
@@ -100,7 +90,7 @@ variable "static_env" {
     },
     {
       name  = "MPC_CONTRACT_ID"
-      value = "signer-c436b5b3-f815-4750-938d-1a4b4b87c911.testnet"
+      value = "v1.signer-prod.testnet"
     },
     {
       name  = "MPC_INDEXER_S3_BUCKET"
@@ -108,7 +98,7 @@ variable "static_env" {
     },
     {
       name  = "MPC_INDEXER_START_BLOCK_HEIGHT"
-      value = 184330000
+      value = 158767549
     },
     {
       name  = "AWS_DEFAULT_REGION"
@@ -116,7 +106,7 @@ variable "static_env" {
     },
     {
       name  = "MPC_GCP_PROJECT_ID"
-      value = "nearone-mpc"
+      value = "<your-project-id>"
     },
     {
       name  = "MPC_WEB_PORT"
