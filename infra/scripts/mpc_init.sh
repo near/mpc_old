@@ -64,13 +64,11 @@ function disk_initial_setup {
 MPC_DIR=/home/mpc
 if [ -d "$MPC_DIR/data" ]; then
   echo "Data directory already exist, there is no need to initial setup, exiting..."
-  # docker rm watchtower; 
-  # docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --debug --interval 30
 else
   disk_initial_setup mpc-partner-testnet-0 "$MPC_DIR"
   mkdir -p $MPC_DIR/data
 fi
 
-
-# docker rm watchtower; 
-# docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --debug --interval 30
+set +e
+docker rm watchtower; 
+docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --debug --interval 3600

@@ -14,7 +14,6 @@ module "gce-container" {
   count   = length(var.node_configs)
   source  = "terraform-google-modules/container-vm/google"
   version = "~> 3.0"
-
   volumes = [
     {
       name = "data-0"
@@ -47,6 +46,14 @@ module "gce-container" {
         value = var.node_configs["${count.index}"].account
       },
       {
+        name  = "RUST_LOG"
+        value = "debug,info"
+      },
+      {
+        name  = "RUST_BACKTRACE"
+        value = "full"
+      },
+      {
         name  = "AWS_ACCESS_KEY_ID"
         value = data.google_secret_manager_secret_version.aws_access_key_secret_id.secret_data
       },
@@ -57,7 +64,6 @@ module "gce-container" {
       {
         name  = "MPC_LOCAL_ADDRESS"
         value = "http://${google_compute_address.external_ips[count.index].address}"
-        # value = "https://${var.node_configs[count.index].domain}"
       },
       {
         name  = "MPC_ENV",

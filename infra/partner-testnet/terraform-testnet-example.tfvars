@@ -20,4 +20,6 @@ node_configs = [
     gcp_account_sk_secret_id           = "multichain-account-sk-testnet-0"
   },
 ]
-
+additional_metadata = {
+  "user-data" =   "#cloud-config\n\n  bootcmd:\n  - mount -o discard,defaults /dev/sdb /home/mpc/\n"
+}
