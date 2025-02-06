@@ -1,5 +1,5 @@
 env             = "testnet"
-project_id      = "nearone-mpc"
+project_id      = "<your-project-id>"
 network         = "default"
 subnetwork      = "default"
 image           = "docker.io/nearone/mpc-node-gcp:testnet-standalone"
@@ -10,7 +10,7 @@ near_boot_nodes = "ed25519:EPH7y1nFPbtDqA3yNqpCX11JbLYT1dNbyD5axMM34fiZ@91.237.1
 node_configs = [
   {
     # Each node has a unique account ID
-    account      = "signer-c436b5b3-f815-4750-938d-1a4b4b87c911.testnet"
+    account      = "{your_near_account_id}"
     domain       = "test.nearone.co"
     mpc_home_dir = "/data"
     # These 4 values below should match your secret names in google secrets manager

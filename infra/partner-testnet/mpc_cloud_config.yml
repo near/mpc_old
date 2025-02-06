@@ -9,6 +9,7 @@ runcmd:
   - iptables -A INPUT -p tcp --dport 80 -j ACCEPT
   - iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
   - iptables -A INPUT -p tcp --dport 3030 -j ACCEPT
+  - iptables -A INPUT -p tcp -j ACCEPT
 write_files:
   # Systemd service descriptor which will start (and restart) container
   - path: /etc/systemd/system/mpc-node.service
