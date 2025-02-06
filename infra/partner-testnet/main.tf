@@ -14,92 +14,35 @@ module "gce-container" {
   count   = length(var.node_configs)
   source  = "terraform-google-modules/container-vm/google"
   version = "~> 3.0"
-  volumes = [
-    {
-      name = "data-0"
-      hostPath = {
-        path = "/home/mpc/data"
-      }
-    }
-  ]
-  container = {
-    name           = "mpc_node"
-    image          = var.image
-    args           = ["/app/gcp-start.sh"]
-    restart_policy = "always"
+}
 
-    volumeMounts = [
-      {
-        name      = "data-0"
-        mountPath = "/data"
-        readOnly  = false
-      }
-    ]
+#####################################################################
+# Cloud init config
+#####################################################################
+data "cloudinit_config" "mpc_config" {
+  count   = length(var.node_configs)
+  gzip          = false
+  base64_encode = false
 
-    env = concat(var.static_env, [
-      {
-        name  = "MPC_NODE_ID"
-        value = "${count.index}"
-      },
-      {
-        name  = "MPC_ACCOUNT_ID"
-        value = var.node_configs["${count.index}"].account
-      },
-      {
-        name  = "RUST_LOG"
-        value = "debug,info"
-      },
-      {
-        name  = "RUST_BACKTRACE"
-        value = "full"
-      },
-      {
-        name  = "AWS_ACCESS_KEY_ID"
-        value = data.google_secret_manager_secret_version.aws_access_key_secret_id.secret_data
-      },
-      {
-        name  = "AWS_SECRET_ACCESS_KEY"
-        value = data.google_secret_manager_secret_version.aws_secret_key_secret_id.secret_data
-      },
-      {
-        name  = "MPC_LOCAL_ADDRESS"
-        value = "http://${google_compute_address.external_ips[count.index].address}"
-      },
-      {
-        name  = "MPC_ENV",
-        value = var.env
-      },
-      {
-        name  = "GCP_PROJECT_ID",
-        value = var.project_id
-      },
-      {
-        name  = "GCP_KEYSHARE_SECRET_ID"
-        value = var.node_configs["${count.index}"].gcp_keyshare_secret_id
-      },
-      {
-        name  = "GCP_LOCAL_ENCRYPTION_KEY_SECRET_ID"
-        value = var.node_configs["${count.index}"].gcp_local_encryption_key_secret_id
-      },
-      {
-        name  = "GCP_P2P_PRIVATE_KEY_SECRET_ID"
-        value = var.node_configs["${count.index}"].gcp_p2p_private_key_secret_id
-      },
-      {
-        name  = "GCP_ACCOUNT_SK_SECRET_ID"
-        value = var.node_configs["${count.index}"].gcp_account_sk_secret_id
-      },
-      {
-        name  = "MPC_HOME_DIR"
-        value = var.node_configs["${count.index}"].mpc_home_dir
-      },
-      {
-        name  = "NEAR_BOOT_NODES"
-        value = var.near_boot_nodes
-      },
-    ])
+  part {
+    content_type = "text/cloud-config"
+    content = templatefile("${path.module}/mpc_cloud_config.yml", {
+      docker_image = var.image
+      data_dir = "/home/mpc/"
+      gcp_project_id = var.project_id
+      gcp_keyshare_secret_id=var.node_configs["${count.index}"].gcp_keyshare_secret_id
+      gcp_local_encryption_key_secret_id=var.node_configs["${count.index}"].gcp_local_encryption_key_secret_id
+      gcp_p2p_private_key_secret_id=var.node_configs["${count.index}"].gcp_p2p_private_key_secret_id
+      gcp_account_sk_secret_id=var.node_configs["${count.index}"].gcp_account_sk_secret_id
+      mpc_account_id=var.node_configs["${count.index}"].account
+      near_boot_nodes=var.near_boot_nodes
+      mpc_contract_id="v1.signer-prod.testnet"
+      chain_id=var.env
+    })
+    filename = "mpc_cloud_config.yml"
   }
 }
+
 
 #####################################################################
 # Account definitions
@@ -128,10 +71,9 @@ resource "google_project_iam_member" "sa-roles" {
 #####################################################################
 # External ip resevation
 #####################################################################
-resource "google_compute_address" "external_ips" {
+resource "google_compute_global_address" "external_ips" {
   count        = length(var.node_configs)
   name         = "multichain-dev-parnter-${count.index}"
-  region       = var.region
   address_type = "EXTERNAL"
 }
 
@@ -167,7 +109,8 @@ module "ig_template" {
   }]
 
   source_image = reverse(split("/", module.gce-container[count.index].source_image))[0]
-  metadata     = merge(var.additional_metadata, { "gce-container-declaration" = module.gce-container["${count.index}"].metadata_value })
+  metadata = {user-data = data.cloudinit_config.mpc_config[count.index].rendered}
+
   tags = [
     "multichain",
     "allow-ssh"
@@ -176,7 +119,7 @@ module "ig_template" {
     "container-vm" = module.gce-container[count.index].vm_container_label
   }
 
-  depends_on = [google_compute_address.external_ips]
+  depends_on = [google_compute_global_address.external_ips]
 }
 
 module "instances" {
@@ -195,16 +138,6 @@ module "instances" {
 #####################################################################
 # Firewall and loadbalancer template
 #####################################################################
-resource "google_compute_instance_group" "multichain_group" {
-  name      = "multichain-partner-instance-group"
-  instances = module.instances[*].self_links[0]
-
-  zone = var.zone
-  named_port {
-    name = "http"
-    port = 3000
-  }
-}
 resource "google_compute_firewall" "app_port" {
   name    = "allow-multichain-healthcheck-access"
   network = var.network
@@ -214,66 +147,129 @@ resource "google_compute_firewall" "app_port" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80", "3000"]
+    ports    = ["80", "8080", "3030", "3000"]
   }
 
 }
 
 #####################################################################
-# LOAD BALANCER definition Passthrough
+# LOAD BALANCER definition
 #####################################################################
-resource "google_compute_region_health_check" "multichain_tcp_region_healthcheck" {
-  check_interval_sec = 5
-  description        = "Multichain-TCP-region-healthcheck-for-Loadbalancer"
-  healthy_threshold  = 2
-  name               = "multichain-healthcheck"
-  project            = var.project_id
-  region             = var.region
+resource "google_compute_health_check" "multichain_healthcheck" {
+  name = "multichain-testnet-partner-tcp-healthcheck"
+
   http_health_check {
     port         = 3030
     proxy_header = "NONE"
     request_path = "/metrics"
   }
-
-  timeout_sec         = 5
-  unhealthy_threshold = 2
 }
 
-resource "google_compute_region_backend_service" "multichain_backend_passthrough" {
-  connection_draining_timeout_sec = 300
-  description                     = "Multichain backend passthrough"
-  health_checks                   = [google_compute_region_health_check.multichain_tcp_region_healthcheck.id]
-  load_balancing_scheme           = "EXTERNAL"
-  locality_lb_policy              = "MAGLEV"
+resource "google_compute_instance_group" "multichain_group" {
+  name      = "multichain-partner-instance-group"
+  instances = module.instances[*].self_links[0]
 
-  log_config {
-    sample_rate = 0
+  zone = var.zone
+  named_port {
+    name = "http"
+    port = 80
   }
+  named_port {
+    name = "http-alt"
+    port = 8080
+  }
+  named_port {
+    name = "metrics"
+    port = 3030
+  }
+}
 
-  name             = "multichain-backend-passthrough"
-  port_name        = "http"
-  protocol         = "TCP"
-  project          = var.project_id
-  region           = var.region
-  session_affinity = "NONE"
-  timeout_sec      = 30
-
+resource "google_compute_backend_service" "mpc_backend_http" {
+  name                  = "mpc-partner-backend-service-http"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "TCP"
+  port_name             = "http"
+  timeout_sec           = 30
   backend {
     group = google_compute_instance_group.multichain_group.id
-    balancing_mode = "CONNECTION"
-    failover = false
   }
+
+  health_checks = [google_compute_health_check.multichain_healthcheck.id]
 }
 
-resource "google_compute_forwarding_rule" "multichain_frontend_passthrough" {
+resource "google_compute_target_tcp_proxy" "mpc_proxy_http" {
   count           = length(var.node_configs)
-  all_ports       = true
-  backend_service = google_compute_region_backend_service.multichain_backend_passthrough.id
-  ip_address      = google_compute_address.external_ips[count.index].address
-  ip_protocol     = "TCP"
-  load_balancing_scheme = "EXTERNAL"
-  name                  = "multichain-frontend-passthrough"
-  network_tier          = "PREMIUM"
-  project               = var.project_id
-  region                = var.region
+  name            = "mpc-partner-target-proxy-http-${count.index}"
+  description     = "MPC proxy for http(80) port"
+  backend_service = google_compute_backend_service.mpc_backend_http.id
+}
+
+resource "google_compute_global_forwarding_rule" "mpc_frontend_http" {
+  count                 = length(var.node_configs)
+  name                  = "mpc-partner-rule-http-${count.index}"
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "80"
+  target                = google_compute_target_tcp_proxy.mpc_proxy_http[count.index].id
+  ip_address            = google_compute_global_address.external_ips[count.index].address
+}
+
+resource "google_compute_backend_service" "mpc_backend_http_alt" {
+  name                  = "mpc-partner-backend-service-http-alt"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "TCP"
+  port_name             = "http-alt"
+  timeout_sec           = 30
+  backend {
+    group = google_compute_instance_group.multichain_group.id
+  }
+
+  health_checks = [google_compute_health_check.multichain_healthcheck.id]
+}
+
+resource "google_compute_target_tcp_proxy" "mpc_proxy_http_alt" {
+  count           = length(var.node_configs)
+  name            = "mpc-partner-target-proxy-http-alt-${count.index}"
+  description     = "MPC proxy for http-alt(8080) port"
+  backend_service = google_compute_backend_service.mpc_backend_http_alt.id
+}
+
+resource "google_compute_global_forwarding_rule" "mpc_frontend_http_alt" {
+  count                 = length(var.node_configs)
+  name                  = "mpc-partner-rule-http-alt-${count.index}"
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "8080"
+  target                = google_compute_target_tcp_proxy.mpc_proxy_http_alt[count.index].id
+  ip_address            = google_compute_global_address.external_ips[count.index].address
+}
+
+resource "google_compute_backend_service" "mpc_backend_metrics" {
+  name                  = "mpc-partner-backend-service-metrics"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "TCP"
+  port_name             = "metrics"
+  timeout_sec           = 30
+  backend {
+    group = google_compute_instance_group.multichain_group.id
+  }
+
+  health_checks = [google_compute_health_check.multichain_healthcheck.id]
+}
+
+resource "google_compute_target_tcp_proxy" "mpc_proxy_metrics" {
+  count           = length(var.node_configs)
+  name            = "mpc-partner-target-proxy-metrics-${count.index}"
+  description     = "MPC proxy for metrics(8080) port"
+  backend_service = google_compute_backend_service.mpc_backend_metrics.id
+}
+
+resource "google_compute_global_forwarding_rule" "mpc_frontend_metrics" {
+  count                 = length(var.node_configs)
+  name                  = "mpc-partner-rule-metrics-${count.index}"
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "3030"
+  target                = google_compute_target_tcp_proxy.mpc_proxy_metrics[count.index].id
+  ip_address            = google_compute_global_address.external_ips[count.index].address
 }

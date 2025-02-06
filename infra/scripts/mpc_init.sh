@@ -69,6 +69,3 @@ else
   mkdir -p $MPC_DIR/data
 fi
 
-set +e
-docker rm watchtower; 
-docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --debug --interval 3600

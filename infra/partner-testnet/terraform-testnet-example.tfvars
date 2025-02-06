@@ -2,7 +2,7 @@ env             = "testnet"
 project_id      = "nearone-mpc"
 network         = "default"
 subnetwork      = "default"
-image           = "docker.io/nearone/mpc-node-gcp:testnet-standalone-935c1be"
+image           = "docker.io/nearone/mpc-node-gcp:testnet-standalone"
 region          = "europe-west1"
 zone            = "europe-west1-b"
 near_boot_nodes = "ed25519:EPH7y1nFPbtDqA3yNqpCX11JbLYT1dNbyD5axMM34fiZ@91.237.141.25:24567,ed25519:8UKENS6qMEr9ErfMyJEiDrsvrTbP9LkFcZeusy261Z5q@66.23.239.58:24568,ed25519:E319a9GQ3VmnQsNjtzDQ2XggkddnYiThmf1RUFQVQoZD@135.181.59.45:24568,ed25519:CZnYNFkwVc7puGKeVczEET3F7niQrmta9qBbrrCmQMoV@15.204.102.233:24567,ed25519:8QFAJ4kLg9rTXPkWrtZpTt6HRj4F38zfjQMcMR51QZDR@65.108.142.173:24567,ed25519:6KqNf95KiCriWByjXNJWGVYKc88Ff7vjs1LDGdqktFZD@54.184.146.36:24567,ed25519:7Bq35uKsRvoB8UAyF566LYSazdzdmwuUwAAwheBUy8iA@37.27.98.72:24567"
@@ -20,6 +20,3 @@ node_configs = [
     gcp_account_sk_secret_id           = "multichain-account-sk-testnet-0"
   },
 ]
-additional_metadata = {
-  "user-data" =   "#cloud-config\n\n  bootcmd:\n  - mount -o discard,defaults /dev/sdb /home/mpc/\n"
-}

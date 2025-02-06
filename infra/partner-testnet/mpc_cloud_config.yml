@@ -1,0 +1,34 @@
+#cloud-config
+
+# Execute on every boot: mound file systems and start container
+runcmd:
+  - mount -o discard,defaults /dev/sdb /home/mpc/
+  - systemctl daemon-reload
+  - systemctl start mpc-node.service
+  - systemctl start docker-watchtower.service
+  - iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+  - iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
+  - iptables -A INPUT -p tcp --dport 3030 -j ACCEPT
+write_files:
+  # Systemd service descriptor which will start (and restart) container
+  - path: /etc/systemd/system/mpc-node.service
+    content: |
+      [Unit]
+      Description=Start MPC Node
+      
+      [Service]
+      ExecStart=/usr/bin/docker run --name mpc-node --net host --restart always -v ${data_dir}:/data -e MPC_HOME_DIR="/data" -e RUST_BACKTRACE="full" -e RUST_LOG="mpc=debug,info" -e GCP_PROJECT_ID=${gcp_project_id} -e GCP_KEYSHARE_SECRET_ID=${gcp_keyshare_secret_id} -e GCP_LOCAL_ENCRYPTION_KEY_SECRET_ID=${gcp_local_encryption_key_secret_id} -e GCP_P2P_PRIVATE_KEY_SECRET_ID=${gcp_p2p_private_key_secret_id} -e GCP_ACCOUNT_SK_SECRET_ID=${gcp_account_sk_secret_id} -e MPC_ACCOUNT_ID=${mpc_account_id} -e NEAR_BOOT_NODES=${near_boot_nodes}  -e MPC_CONTRACT_ID=${mpc_contract_id} -e MPC_ENV=${chain_id} ${docker_image}
+      ExecStop=/usr/bin/docker stop mpc-node
+      ExecStopPost=/usr/bin/docker rm mpc-node
+      Restart=on-failure
+
+  - path: /etc/systemd/system/docker-watchtower.service
+    content: |
+      [Unit]
+      Description=Start Docker Watchtower
+      
+      [Service]
+      ExecStart=/usr/bin/docker run --name watchtower -p 8888:8080 -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --debug --interval 30
+      ExecStop=/usr/bin/docker stop watchtower
+      ExecStopPost=/usr/bin/docker rm watchtower
+      Restart=on-failure
