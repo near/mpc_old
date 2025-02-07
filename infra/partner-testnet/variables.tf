@@ -3,27 +3,20 @@ variable "project_id" {
   type        = string
 }
 
-variable "subnetwork" {
-  description = "The name of the subnetwork to deploy instances into"
+variable "network" {
+  description = "The GCP network"
   type        = string
 }
 
-variable "mig_name" {
-  description = "The desired name to assign to the deployed managed instance group"
+variable "subnetwork" {
+  description = "The name of the subnetwork to deploy instances into"
   type        = string
-  default     = "mpc-mig"
 }
 
 variable "image" {
   description = "The Docker image to deploy to GCE instances. Note: This is a public image repository used for updating your nodes, please do not change this"
   type        = string
   default     = "docker.io/nearone/mpc-node-gcp:latest"
-}
-
-variable "image_port" {
-  description = "The port the image exposes for HTTP requests"
-  type        = number
-  default     = 3000
 }
 
 variable "region" {
@@ -39,17 +32,6 @@ variable "near_boot_nodes" {
   type = string
 }
 
-variable "network" {
-  description = "The GCP network"
-  type        = string
-}
-
-variable "additional_metadata" {
-  type        = map(any)
-  description = "Additional metadata to attach to the instance"
-  default     = {}
-}
-
 variable "service_account" {
   type = object({
     email  = string,
@@ -61,11 +43,6 @@ variable "service_account" {
   }
 }
 
-variable "env_variables" {
-  type    = map(any)
-  default = null
-}
-
 variable "node_configs" {
   type = list(object({
     account                            = string
@@ -73,63 +50,12 @@ variable "node_configs" {
     gcp_keyshare_secret_id             = string
     gcp_p2p_private_key_secret_id      = string
     gcp_account_sk_secret_id           = string
-    mpc_home_dir                       = string
   }))
 }
 
 variable "env" {
   type    = string
   default = "dev"
-}
-
-variable "scenario" {
-  type    = string
-  default = "old"
-}
-
-variable "static_env" {
-  type = list(object({
-    name  = string
-    value = string
-  }))
-  default = [
-    {
-      name  = "MPC_NEAR_RPC"
-      value = "https://rpc.testnet.near.org"
-    },
-    {
-      name  = "MPC_CONTRACT_ID"
-      value = "signer-c436b5b3-f815-4750-938d-1a4b4b87c911.testnet"
-    },
-    {
-      name  = "MPC_INDEXER_S3_BUCKET"
-      value = "near-lake-data-testnet"
-    },
-    {
-      name  = "MPC_INDEXER_START_BLOCK_HEIGHT"
-      value = 184330000
-    },
-    {
-      name  = "AWS_DEFAULT_REGION"
-      value = "eu-central-1"
-    },
-    {
-      name  = "MPC_GCP_PROJECT_ID"
-      value = "nearone-mpc"
-    },
-    {
-      name  = "MPC_WEB_PORT"
-      value = "3000"
-    },
-    {
-      name  = "RUST_LOG"
-      value = "mpc_node=debug"
-    },
-    {
-      name  = "MPC_INDEXER_S3_REGION"
-      value = "eu-central-1"
-    }
-  ]
 }
 
 variable "create_network" {

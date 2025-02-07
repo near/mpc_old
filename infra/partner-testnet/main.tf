@@ -20,24 +20,24 @@ module "gce-container" {
 # Cloud init config
 #####################################################################
 data "cloudinit_config" "mpc_config" {
-  count   = length(var.node_configs)
+  count         = length(var.node_configs)
   gzip          = false
   base64_encode = false
 
   part {
     content_type = "text/cloud-config"
     content = templatefile("${path.module}/mpc_cloud_config.yml", {
-      docker_image = var.image
-      data_dir = "/home/mpc/"
-      gcp_project_id = var.project_id
-      gcp_keyshare_secret_id=var.node_configs["${count.index}"].gcp_keyshare_secret_id
-      gcp_local_encryption_key_secret_id=var.node_configs["${count.index}"].gcp_local_encryption_key_secret_id
-      gcp_p2p_private_key_secret_id=var.node_configs["${count.index}"].gcp_p2p_private_key_secret_id
-      gcp_account_sk_secret_id=var.node_configs["${count.index}"].gcp_account_sk_secret_id
-      mpc_account_id=var.node_configs["${count.index}"].account
-      near_boot_nodes=var.near_boot_nodes
-      mpc_contract_id="v1.signer-prod.testnet"
-      chain_id=var.env
+      docker_image                       = var.image
+      data_dir                           = "/home/mpc/"
+      gcp_project_id                     = var.project_id
+      gcp_keyshare_secret_id             = var.node_configs["${count.index}"].gcp_keyshare_secret_id
+      gcp_local_encryption_key_secret_id = var.node_configs["${count.index}"].gcp_local_encryption_key_secret_id
+      gcp_p2p_private_key_secret_id      = var.node_configs["${count.index}"].gcp_p2p_private_key_secret_id
+      gcp_account_sk_secret_id           = var.node_configs["${count.index}"].gcp_account_sk_secret_id
+      mpc_account_id                     = var.node_configs["${count.index}"].account
+      near_boot_nodes                    = var.near_boot_nodes
+      mpc_contract_id                    = "v1.signer-prod.testnet"
+      chain_id                           = var.env
     })
     filename = "mpc_cloud_config.yml"
   }
@@ -109,7 +109,7 @@ module "ig_template" {
   }]
 
   source_image = reverse(split("/", module.gce-container[count.index].source_image))[0]
-  metadata = {user-data = data.cloudinit_config.mpc_config[count.index].rendered}
+  metadata     = { user-data = data.cloudinit_config.mpc_config[count.index].rendered }
 
   tags = [
     "multichain",
@@ -269,7 +269,7 @@ resource "google_compute_global_forwarding_rule" "mpc_frontend_metrics" {
   name                  = "mpc-partner-rule-metrics-${count.index}"
   ip_protocol           = "TCP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
-  port_range            = "3030"
+  port_range            = "3000"
   target                = google_compute_target_tcp_proxy.mpc_proxy_metrics[count.index].id
   ip_address            = google_compute_global_address.external_ips[count.index].address
 }

@@ -10,9 +10,7 @@ near_boot_nodes = "ed25519:EPH7y1nFPbtDqA3yNqpCX11JbLYT1dNbyD5axMM34fiZ@91.237.1
 node_configs = [
   {
     # Each node has a unique account ID
-    account      = "{your_near_account_id}"
-    domain       = "test.nearone.co"
-    mpc_home_dir = "/data"
+    account = "{your_near_account_id}"
     # These 4 values below should match your secret names in google secrets manager
     gcp_local_encryption_key_secret_id = "multichain-local-encryption-key-0"
     gcp_keyshare_secret_id             = "multichain-sk-share-testnet-0"
@@ -20,3 +18,4 @@ node_configs = [
     gcp_account_sk_secret_id           = "multichain-account-sk-testnet-0"
   },
 ]
+
