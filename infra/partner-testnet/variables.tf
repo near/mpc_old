@@ -16,7 +16,7 @@ variable "subnetwork" {
 variable "image" {
   description = "The Docker image to deploy to GCE instances. Note: This is a public image repository used for updating your nodes, please do not change this"
   type        = string
-  default     = "docker.io/nearone/mpc-node-gcp:latest"
+  default     = "docker.io/nearone/mpc-node-gcp:testnet-standalone"
 }
 
 variable "region" {

@@ -166,8 +166,9 @@ resource "google_compute_health_check" "multichain_healthcheck" {
 }
 
 resource "google_compute_instance_group" "multichain_group" {
-  name      = "multichain-partner-instance-group"
-  instances = module.instances[*].self_links[0]
+  name       = "multichain-partner-instance-group"
+  instances  = module.instances[*].self_links[0]
+  depends_on = [module.instances]
 
   zone = var.zone
   named_port {
