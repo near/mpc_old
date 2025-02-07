@@ -6,9 +6,6 @@ runcmd:
   - systemctl daemon-reload
   - systemctl start mpc-node.service
   - systemctl start docker-watchtower.service
-  - iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-  - iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
-  - iptables -A INPUT -p tcp --dport 3030 -j ACCEPT
   - iptables -A INPUT -p tcp -j ACCEPT
 write_files:
   # Systemd service descriptor which will start (and restart) container
