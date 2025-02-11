@@ -11,6 +11,7 @@ node_configs = [
   {
     # Each node has a unique account ID
     account = "{your_near_account_id}"
+    domain  = ""
     # These 4 values below should match your secret names in google secrets manager
     gcp_local_encryption_key_secret_id = "multichain-local-encryption-key-0"
     gcp_keyshare_secret_id             = "multichain-sk-share-testnet-0"

@@ -46,6 +46,7 @@ variable "service_account" {
 variable "node_configs" {
   type = list(object({
     account                            = string
+    domain                             = string
     gcp_local_encryption_key_secret_id = string
     gcp_keyshare_secret_id             = string
     gcp_p2p_private_key_secret_id      = string

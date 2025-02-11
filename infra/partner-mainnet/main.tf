@@ -5,68 +5,15 @@ provider "google-beta" {
   project = var.project_id
 }
 
-resource "google_compute_project_metadata_item" "project_logging" {
-  key = "google-logging-enabled"
-  value = "true"
-}
 module "gce-container" {
   count   = length(var.node_configs)
   source  = "terraform-google-modules/container-vm/google"
   version = "~> 3.0"
-
-  container = {
-    image = var.image
-    args  = ["start"]
-    port  = "3000"
-
-    env = concat(var.static_env, [
-      {
-        name  = "MPC_NODE_ID"
-        value = "${count.index}"
-      },
-      {
-        name  = "MPC_ACCOUNT_ID"
-        value = var.node_configs["${count.index}"].account
-      },
-      {
-        name  = "MPC_CIPHER_PK"
-        value = var.node_configs["${count.index}"].cipher_pk
-      },
-      {
-        name  = "MPC_ACCOUNT_SK"
-        value = data.google_secret_manager_secret_version.account_sk_secret_id[count.index].secret_data
-      },
-      {
-        name  = "MPC_CIPHER_SK"
-        value = data.google_secret_manager_secret_version.cipher_sk_secret_id[count.index].secret_data
-      },
-      {
-        name  = "MPC_SIGN_SK"
-        value = data.google_secret_manager_secret_version.sign_sk_secret_id[count.index] != null ? data.google_secret_manager_secret_version.sign_sk_secret_id[count.index].secret_data : data.google_secret_manager_secret_version.account_sk_secret_id[count.index].secret_data
-      },
-      {
-        name  = "AWS_ACCESS_KEY_ID"
-        value = data.google_secret_manager_secret_version.aws_access_key_secret_id.secret_data
-      },
-      {
-        name  = "AWS_SECRET_ACCESS_KEY"
-        value = data.google_secret_manager_secret_version.aws_secret_key_secret_id.secret_data
-      },
-      {
-        name  = "MPC_LOCAL_ADDRESS"
-        value = "https://${var.node_configs[count.index].domain}"
-      },
-      {
-        name  = "MPC_SK_SHARE_SECRET_ID"
-        value = var.node_configs["${count.index}"].sk_share_secret_id
-      },
-      {
-        name  = "MPC_ENV",
-        value = var.env
-      }
-    ])
-  }
 }
+
+#####################################################################
+# Account definitions
+#####################################################################
 
 resource "google_service_account" "service_account" {
   account_id   = "multichain-partner-${var.env}"
@@ -82,11 +29,14 @@ resource "google_project_iam_member" "sa-roles" {
     "roles/logging.logWriter",
   ])
 
-  role     = each.key
-  member   = "serviceAccount:${google_service_account.service_account.email}"
-   project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.service_account.email}"
+  project = var.project_id
 }
 
+#####################################################################
+# External ip resevation
+#####################################################################
 resource "google_compute_global_address" "external_ips" {
   count        = length(var.node_configs)
   name         = "multichain-partner-mainnet-${count.index}"
@@ -96,16 +46,37 @@ resource "google_compute_global_address" "external_ips" {
     prevent_destroy = true
   }
 }
+#####################################################################
+# Cloud init config
+#####################################################################
+data "cloudinit_config" "mpc_config" {
+  count         = length(var.node_configs)
+  gzip          = false
+  base64_encode = false
 
-resource "google_compute_managed_ssl_certificate" "mainnet_ssl" {
-  count = length(var.node_configs)
-  name  = "multichain-partner-mainnet-ssl-${count.index}"
-
-  managed {
-    domains = [var.node_configs[count.index].domain]
+  part {
+    content_type = "text/cloud-config"
+    content = templatefile("../configs/mpc_cloud_config.yml", {
+      docker_image                       = var.image
+      data_dir                           = "/home/mpc/"
+      gcp_project_id                     = var.project_id
+      gcp_keyshare_secret_id             = var.node_configs["${count.index}"].gcp_keyshare_secret_id
+      gcp_local_encryption_key_secret_id = var.node_configs["${count.index}"].gcp_local_encryption_key_secret_id
+      gcp_p2p_private_key_secret_id      = var.node_configs["${count.index}"].gcp_p2p_private_key_secret_id
+      gcp_account_sk_secret_id           = var.node_configs["${count.index}"].gcp_account_sk_secret_id
+      mpc_account_id                     = var.node_configs["${count.index}"].account
+      near_boot_nodes                    = var.near_boot_nodes
+      mpc_contract_id                    = "v1.signer"
+      mpc_local_address                  = var.node_configs[count.index].domain
+      chain_id                           = var.env
+    })
+    filename = "mpc_cloud_config.yml"
   }
 }
 
+#####################################################################
+# Instance definitions
+#####################################################################
 module "ig_template" {
   count      = length(var.node_configs)
   source     = "../modules/mig_template"
@@ -119,12 +90,24 @@ module "ig_template" {
   name_prefix          = "multichain-partner-mainnet-${count.index}"
   source_image_family  = "cos-113-lts"
   source_image_project = "cos-cloud"
-  machine_type         = "n2d-standard-2"
+  machine_type         = "n2d-standard-16"
 
-  startup_script = "docker rm watchtower ; docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --debug --interval 30"
+  startup_script = file("${path.module}/../scripts/mpc_init.sh")
+
+  additional_disks = [{
+    description  = "MPC partner mainnet data disk"
+    disk_name    = "mpc-partner-mainnet-${count.index}"
+    auto_delete  = false
+    boot         = false
+    disk_size_gb = 1024
+    disk_type    = "pd-ssd"
+    disk_labels  = {}
+    device_name  = "mpc-partner-mainnet-${count.index}"
+  }]
+
 
   source_image = reverse(split("/", module.gce-container[count.index].source_image))[0]
-  metadata     = merge(var.additional_metadata, { "gce-container-declaration" = module.gce-container["${count.index}"].metadata_value })
+  metadata     = { user-data = data.cloudinit_config.mpc_config[count.index].rendered }
   tags = [
     "multichain",
     "allow-ssh"
@@ -150,95 +133,9 @@ module "instances" {
 
 }
 
-resource "google_compute_health_check" "multichain_healthcheck" {
-  name = "multichain-mainnet-partner-healthcheck"
-
-  http_health_check {
-    port         = 3000
-    request_path = "/"
-  }
-
-}
-
-resource "google_compute_global_forwarding_rule" "http_fw" {
-  count                 = length(var.node_configs)
-  name                  = "multichain-partner-mainnet-http-rule-${count.index}"
-  target                = google_compute_target_http_proxy.default[count.index].id
-  port_range            = "80"
-  ip_protocol           = "TCP"
-  load_balancing_scheme = "EXTERNAL"
-  ip_address            = google_compute_global_address.external_ips[count.index].address
-}
-
-resource "google_compute_global_forwarding_rule" "https_fw" {
-  count                 = length(var.node_configs)
-  name                  = "multichain-partner-mainnet-https-rule-${count.index}"
-  target                = google_compute_target_https_proxy.default_https[count.index].id
-  port_range            = "443"
-  ip_protocol           = "TCP"
-  load_balancing_scheme = "EXTERNAL"
-  ip_address            = google_compute_global_address.external_ips[count.index].address
-}
-
-resource "google_compute_target_http_proxy" "default" {
-  count       = length(var.node_configs)
-  name        = "multichain-partner-mainnet-http-target-proxy-${count.index}"
-  description = "a description"
-  url_map     = google_compute_url_map.redirect_default[count.index].id
-}
-
-resource "google_compute_target_https_proxy" "default_https" {
-  count            = length(var.node_configs)
-  name             = "multichain-partner-mainnet-https-target-proxy-${count.index}"
-  description      = "a description"
-  ssl_certificates = [google_compute_managed_ssl_certificate.mainnet_ssl[count.index].self_link]
-  url_map          = google_compute_url_map.default[count.index].id
-}
-
-resource "google_compute_url_map" "default" {
-  count           = length(var.node_configs)
-  name            = "multichain-partner-mainnet-url-map-${count.index}"
-  default_service = google_compute_backend_service.multichain_backend[count.index].id
-}
-
-resource "google_compute_url_map" "redirect_default" {
-  count = length(var.node_configs)
-  name  = "multichain-partner-mainnet-redirect-url-map-${count.index}"
-  default_url_redirect {
-    strip_query    = false
-    https_redirect = true
-  }
-}
-
-resource "google_compute_backend_service" "multichain_backend" {
-  count                 = length(var.node_configs)
-  name                  = "multichain-partner-mainnet-backend-service-${count.index}"
-  load_balancing_scheme = "EXTERNAL"
-  
-
-  log_config {
-    enable = true
-    sample_rate = 0.5
-  }
-  backend {
-    group = google_compute_instance_group.multichain_group[count.index].id
-  }
-
-  health_checks = [google_compute_health_check.multichain_healthcheck.id]
-}
-
-resource "google_compute_instance_group" "multichain_group" {
-  count     = length(var.node_configs)
-  name      = "multichain-partner-mainnet-instance-group-${count.index}"
-  instances = [module.instances[count.index].self_links[0]]
-
-  zone = var.zone
-  named_port {
-    name = "http"
-    port = 3000
-  }
-}
-
+#####################################################################
+# Firewall template
+#####################################################################
 resource "google_compute_firewall" "app_port" {
   name    = "allow-multichain-healthcheck-access"
   network = var.network
@@ -248,7 +145,130 @@ resource "google_compute_firewall" "app_port" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80", "3000"]
+    ports    = ["80", "8080", "3030", "3000"]
   }
 
+}
+
+#####################################################################
+# LOAD BALANCER definition
+#####################################################################
+resource "google_compute_health_check" "multichain_healthcheck" {
+  name = "multichain-testnet-partner-tcp-healthcheck"
+
+  http_health_check {
+    port         = 3030
+    proxy_header = "NONE"
+    request_path = "/metrics"
+  }
+}
+
+resource "google_compute_instance_group" "multichain_group" {
+  name       = "multichain-partner-instance-group"
+  instances  = module.instances[*].self_links[0]
+  depends_on = [module.instances]
+
+  zone = var.zone
+  named_port {
+    name = "http"
+    port = 80
+  }
+  named_port {
+    name = "http-alt"
+    port = 8080
+  }
+  named_port {
+    name = "metrics"
+    port = 3030
+  }
+}
+
+resource "google_compute_backend_service" "mpc_backend_http" {
+  name                  = "mpc-partner-backend-service-http"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "TCP"
+  port_name             = "http"
+  timeout_sec           = 30
+  backend {
+    group = google_compute_instance_group.multichain_group.id
+  }
+
+  health_checks = [google_compute_health_check.multichain_healthcheck.id]
+}
+
+resource "google_compute_target_tcp_proxy" "mpc_proxy_http" {
+  count           = length(var.node_configs)
+  name            = "mpc-partner-target-proxy-http-${count.index}"
+  description     = "MPC proxy for http(80) port"
+  backend_service = google_compute_backend_service.mpc_backend_http.id
+}
+
+resource "google_compute_global_forwarding_rule" "mpc_frontend_http" {
+  count                 = length(var.node_configs)
+  name                  = "mpc-partner-rule-http-${count.index}"
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "80"
+  target                = google_compute_target_tcp_proxy.mpc_proxy_http[count.index].id
+  ip_address            = google_compute_global_address.external_ips[count.index].address
+}
+
+resource "google_compute_backend_service" "mpc_backend_http_alt" {
+  name                  = "mpc-partner-backend-service-http-alt"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "TCP"
+  port_name             = "http-alt"
+  timeout_sec           = 30
+  backend {
+    group = google_compute_instance_group.multichain_group.id
+  }
+
+  health_checks = [google_compute_health_check.multichain_healthcheck.id]
+}
+
+resource "google_compute_target_tcp_proxy" "mpc_proxy_http_alt" {
+  count           = length(var.node_configs)
+  name            = "mpc-partner-target-proxy-http-alt-${count.index}"
+  description     = "MPC proxy for http-alt(8080) port"
+  backend_service = google_compute_backend_service.mpc_backend_http_alt.id
+}
+
+resource "google_compute_global_forwarding_rule" "mpc_frontend_http_alt" {
+  count                 = length(var.node_configs)
+  name                  = "mpc-partner-rule-http-alt-${count.index}"
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "8080"
+  target                = google_compute_target_tcp_proxy.mpc_proxy_http_alt[count.index].id
+  ip_address            = google_compute_global_address.external_ips[count.index].address
+}
+
+resource "google_compute_backend_service" "mpc_backend_metrics" {
+  name                  = "mpc-partner-backend-service-metrics"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "TCP"
+  port_name             = "metrics"
+  timeout_sec           = 30
+  backend {
+    group = google_compute_instance_group.multichain_group.id
+  }
+
+  health_checks = [google_compute_health_check.multichain_healthcheck.id]
+}
+
+resource "google_compute_target_tcp_proxy" "mpc_proxy_metrics" {
+  count           = length(var.node_configs)
+  name            = "mpc-partner-target-proxy-metrics-${count.index}"
+  description     = "MPC proxy for metrics(8080) port"
+  backend_service = google_compute_backend_service.mpc_backend_metrics.id
+}
+
+resource "google_compute_global_forwarding_rule" "mpc_frontend_metrics" {
+  count                 = length(var.node_configs)
+  name                  = "mpc-partner-rule-metrics-${count.index}"
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "3000"
+  target                = google_compute_target_tcp_proxy.mpc_proxy_metrics[count.index].id
+  ip_address            = google_compute_global_address.external_ips[count.index].address
 }

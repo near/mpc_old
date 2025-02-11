@@ -65,7 +65,7 @@ MPC_DIR=/home/mpc
 if [ -d "$MPC_DIR/data" ]; then
   echo "Data directory already exist, there is no need to initial setup, exiting..."
 else
-  disk_initial_setup mpc-partner-testnet-0 "$MPC_DIR"
+  disk_initial_setup mpc-partner-*net-* "$MPC_DIR"
   mkdir -p $MPC_DIR/data
 fi
 

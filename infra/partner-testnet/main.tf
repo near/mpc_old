@@ -26,7 +26,7 @@ data "cloudinit_config" "mpc_config" {
 
   part {
     content_type = "text/cloud-config"
-    content = templatefile("${path.module}/mpc_cloud_config.yml", {
+    content = templatefile("../configs/mpc_cloud_config.yml", {
       docker_image                       = var.image
       data_dir                           = "/home/mpc/"
       gcp_project_id                     = var.project_id
@@ -37,6 +37,7 @@ data "cloudinit_config" "mpc_config" {
       mpc_account_id                     = var.node_configs["${count.index}"].account
       near_boot_nodes                    = var.near_boot_nodes
       mpc_contract_id                    = "v1.signer-prod.testnet"
+      mpc_local_address                  = var.node_configs[count.index].domain
       chain_id                           = var.env
     })
     filename = "mpc_cloud_config.yml"
@@ -132,11 +133,10 @@ module "instances" {
   subnetwork = var.subnetwork
 
   instance_template = module.ig_template[count.index].self_link_unique
-
 }
 
 #####################################################################
-# Firewall and loadbalancer template
+# Firewall template
 #####################################################################
 resource "google_compute_firewall" "app_port" {
   name    = "allow-multichain-healthcheck-access"
@@ -149,7 +149,6 @@ resource "google_compute_firewall" "app_port" {
     protocol = "tcp"
     ports    = ["80", "8080", "3030", "3000"]
   }
-
 }
 
 #####################################################################
